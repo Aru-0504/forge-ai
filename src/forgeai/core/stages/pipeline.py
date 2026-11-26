@@ -1,4 +1,4 @@
-"""ForgePipeline: 7-stage iterative orchestrator with timeouts, budgets, degradation, and checkpoints."""
+"""ForgePipeline: 7-stage iterative orchestrator with human checkpoint, timeouts, budgets, degradation."""
 
 from __future__ import annotations
 
@@ -20,13 +20,20 @@ from forgeai.core.schemas import (
     GroundabilityReport,
     KnowledgeIndexData,
     LoopRecord,
+    RequirementsDoc,
 )
-from forgeai.core.stages.base import BaseStage, EventCallback, StageContext
+from forgeai.core.stages.base import (
+    ApprovalCallback,
+    BaseStage,
+    EventCallback,
+    InterviewCallback,
+    StageContext,
+)
 from forgeai.core.stages.critic_stage import CriticStage
 from forgeai.core.stages.evalgen_stage import EvalGenStage
 from forgeai.core.stages.generator_stage import GeneratorStage
 from forgeai.core.stages.groundability_stage import GroundabilityStage
-from forgeai.core.stages.intake_stage import IntakeStage
+from forgeai.core.stages.intake_stage import IntakeStage, requirements_to_analysis
 from forgeai.core.stages.judge_stage import JudgeStage
 from forgeai.core.stages.report_stage import ReportStage
 from forgeai.llm.base import BaseLLMClient
@@ -37,7 +44,6 @@ from forgeai.security.url_guard import URLValidationError
 
 logger = get_logger("core.pipeline")
 
-# Fatal user-input errors should fail fast with a clear message instead of degrading
 _FATAL_INPUT_ERRORS = (IngestInputError, UploadValidationError, URLValidationError)
 
 
@@ -45,8 +51,23 @@ class StageTimeoutError(TimeoutError):
     """Raised when a single pipeline stage exceeds its configured wall-clock timeout."""
 
 
+class HumanApprovalRequired(Exception):
+    """Control-flow signal raised when Human Checkpoint pauses a run awaiting requester approval."""
+
+    def __init__(
+        self,
+        run_id: str,
+        requirements: RequirementsDoc,
+        groundability: GroundabilityReport,
+    ) -> None:
+        super().__init__(f"Run {run_id} is awaiting human approval of requirements.")
+        self.run_id = run_id
+        self.requirements = requirements
+        self.groundability = groundability
+
+
 class ForgePipeline:
-    """Runs intake -> groundability -> evalgen -> [generator -> judge -> critic]xN -> report."""
+    """Runs intake -> groundability -> [human checkpoint] -> evalgen -> [generator -> judge -> critic]xN -> report."""
 
     def __init__(
         self,
@@ -81,8 +102,10 @@ class ForgePipeline:
         self.report_stage = report_stage or ReportStage()
 
     def _run_with_timeout(self, stage: BaseStage, ctx: StageContext) -> None:
-        """Execute `stage.run(ctx)` with a bounded per-stage timeout."""
-        if ctx.stage_timeout_seconds <= 0:
+        # Interactive callbacks must execute on the calling thread (for stdin prompts)
+        if ctx.stage_timeout_seconds <= 0 or (
+            stage.name == "intake" and ctx.interview_callback is not None
+        ):
             stage.run(ctx)
             return
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
@@ -95,7 +118,6 @@ class ForgePipeline:
                 ) from exc
 
     def _execute_stage(self, stage: BaseStage, ctx: StageContext, *, allow_degrade: bool = True) -> None:
-        """Run a stage with retry-once and graceful degradation on double failure."""
         with bind_log_context(stage=stage.name, loop=ctx.iteration):
             t0 = time.monotonic()
             ctx.emit(
@@ -138,7 +160,6 @@ class ForgePipeline:
                     if attempt < max_attempts:
                         continue
 
-            # Failed twice -> degrade gracefully instead of crashing the run
             reason = str(last_exc)
             fallback_desc = stage.fallback(ctx, reason)
             elapsed_ms = (time.monotonic() - t0) * 1000.0
@@ -159,12 +180,24 @@ class ForgePipeline:
             )
 
     def _restore_checkpoints(self, ctx: StageContext) -> set[str]:
-        """Restore previously completed stage checkpoints if resuming an interrupted run."""
         done: set[str] = set()
         intake_cp = ctx.load_checkpoint("intake")
         if intake_cp:
             ctx.knowledge_index = KnowledgeIndexData.model_validate(intake_cp["knowledge_index"])
-            ctx.analysis = DomainAnalysis.model_validate(intake_cp["analysis"])
+            if "requirements" in intake_cp:
+                ctx.requirements = RequirementsDoc.model_validate(intake_cp["requirements"])
+                ctx.analysis = requirements_to_analysis(ctx.requirements)
+            else:
+                ctx.analysis = DomainAnalysis.model_validate(intake_cp["analysis"])
+                ctx.requirements = RequirementsDoc(
+                    domain=ctx.analysis.domain,
+                    scope=ctx.analysis.summary,
+                    audience=", ".join(ctx.analysis.target_users) or "Operators",
+                    must_answer_topics=ctx.analysis.key_topics,
+                    recommended_tools=ctx.analysis.recommended_tools,
+                    risk_controls=ctx.analysis.risk_controls,
+                    assumptions=ctx.analysis.assumptions,
+                )
             done.add("intake")
 
         ground_cp = ctx.load_checkpoint("groundability")
@@ -193,6 +226,8 @@ class ForgePipeline:
         *,
         run_id: str | None = None,
         on_event: EventCallback | None = None,
+        interview_callback: InterviewCallback | None = None,
+        approval_callback: ApprovalCallback | None = None,
         checkpoint_dir: Path | None = None,
         log_file: Path | None = None,
     ) -> ForgeArtifact:
@@ -207,6 +242,8 @@ class ForgePipeline:
             llm=self.llm,
             metrics=metrics,
             emit_event=emit_fn,
+            interview_callback=interview_callback,
+            approval_callback=approval_callback,
             config_hash=self.config_hash,
             prompt_versions=get_prompt_versions(),
             max_upload_bytes=self.max_upload_bytes,
@@ -232,6 +269,7 @@ class ForgePipeline:
                     "goal": ctx.request.goal,
                     "source_count": len(ctx.request.sources),
                     "max_loops": ctx.request.max_loops,
+                    "require_human_approval": ctx.request.require_human_approval,
                 },
             )
 
@@ -240,23 +278,75 @@ class ForgePipeline:
                 logger.info("Resuming run %s with completed checkpoints: %s", ctx.run_id, sorted(completed))
 
             try:
-                # Stage 1: Intake
+                # Stage 1: Intake (Ingest + <=5 clarifying questions + RequirementsDoc)
                 if "intake" not in completed:
                     self._execute_stage(self.intake_stage, ctx)
-                    assert ctx.knowledge_index is not None and ctx.analysis is not None
+                    assert (
+                        ctx.knowledge_index is not None
+                        and ctx.requirements is not None
+                        and ctx.analysis is not None
+                    )
                     ctx.save_checkpoint(
                         "intake",
                         {
                             "knowledge_index": ctx.knowledge_index.model_dump(),
+                            "requirements": ctx.requirements.model_dump(),
                             "analysis": ctx.analysis.model_dump(),
                         },
                     )
 
-                # Stage 2: Groundability
+                # Stage 2: Groundability Guard
                 if "groundability" not in completed:
                     self._execute_stage(self.groundability_stage, ctx)
-                    assert ctx.groundability is not None
+                    assert ctx.groundability is not None and ctx.requirements is not None
+                    ctx.analysis = requirements_to_analysis(ctx.requirements)
                     ctx.save_checkpoint("groundability", ctx.groundability.model_dump())
+                    # Persist updated requirements (now containing any groundability gaps in must_refuse)
+                    assert ctx.knowledge_index is not None
+                    ctx.save_checkpoint(
+                        "intake",
+                        {
+                            "knowledge_index": ctx.knowledge_index.model_dump(),
+                            "requirements": ctx.requirements.model_dump(),
+                            "analysis": ctx.analysis.model_dump(),
+                        },
+                    )
+
+                # Bonus #1: Human Checkpoint before agent generation proceeds
+                assert ctx.requirements is not None and ctx.groundability is not None
+                if ctx.request.require_human_approval and not ctx.requirements.approved_by_human:
+                    if ctx.approval_callback is not None:
+                        edited = ctx.approval_callback(ctx.requirements, ctx.groundability)
+                        edited.approved_by_human = True
+                        ctx.requirements = edited
+                        ctx.analysis = requirements_to_analysis(edited)
+                        assert ctx.knowledge_index is not None
+                        ctx.save_checkpoint(
+                            "intake",
+                            {
+                                "knowledge_index": ctx.knowledge_index.model_dump(),
+                                "requirements": ctx.requirements.model_dump(),
+                                "analysis": ctx.analysis.model_dump(),
+                            },
+                        )
+                    else:
+                        ctx.status = "awaiting_approval"
+                        ctx.emit(
+                            stage="groundability",
+                            event_type="awaiting_approval",
+                            message=(
+                                "Paused at Human Checkpoint: review/edit requirements.json and "
+                                "call POST /runs/{id}/approve to continue generation."
+                            ),
+                            progress=0.35,
+                            data={
+                                "requirements": ctx.requirements.model_dump(),
+                                "groundability": ctx.groundability.model_dump(),
+                            },
+                        )
+                        raise HumanApprovalRequired(
+                            ctx.run_id, ctx.requirements, ctx.groundability
+                        )
 
                 # Stage 3: EvalGen
                 if "evalgen" not in completed:
@@ -266,7 +356,7 @@ class ForgePipeline:
                         {"cases": [c.model_dump() for c in ctx.eval_cases]},
                     )
 
-                # Stages 4-6: Iterative improvement loop (generator -> judge -> critic, up to max_loops)
+                # Stages 4-6: Iterative loop (generator -> judge -> critic, up to max_loops)
                 if "loops" not in completed:
                     for loop_idx in range(1, ctx.request.max_loops + 1):
                         ctx.iteration = loop_idx
@@ -274,7 +364,6 @@ class ForgePipeline:
                         self._execute_stage(self.judge_stage, ctx)
 
                         assert ctx.agent_spec is not None and ctx.eval_report is not None
-                        # Track best candidate across loops
                         if (
                             ctx.best_eval_report is None
                             or ctx.eval_report.average_score >= ctx.best_eval_report.average_score
@@ -310,6 +399,8 @@ class ForgePipeline:
                         if ctx.critic_feedback.should_stop:
                             break
 
+            except HumanApprovalRequired:
+                raise
             except BudgetExceededError as exc:
                 logger.warning("Run %s hit budget limit: %s", ctx.run_id, exc)
                 ctx.status = "budget_exhausted"
@@ -321,10 +412,9 @@ class ForgePipeline:
                     progress=0.90,
                     data={"reason": exc.reason},
                 )
-                # Ensure minimum fallback artifacts exist so ReportStage can always produce a scorecard
                 if ctx.knowledge_index is None:
                     ctx.knowledge_index = KnowledgeIndexData()
-                if ctx.analysis is None:
+                if ctx.requirements is None or ctx.analysis is None:
                     self.intake_stage.fallback(ctx, str(exc))
                 if ctx.groundability is None:
                     self.groundability_stage.fallback(ctx, str(exc))
@@ -344,7 +434,7 @@ class ForgePipeline:
                 )
                 raise
 
-            # Stage 7: Report (always runs for both `done` and `budget_exhausted`)
+            # Stage 7: Report
             with bind_log_context(stage=self.report_stage.name):
                 t0 = time.monotonic()
                 ctx.emit(

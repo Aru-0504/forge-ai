@@ -11,8 +11,8 @@ from collections.abc import AsyncIterator
 from forgeai.core.schemas import PipelineEvent
 from forgeai.service.store import ForgeStore
 
-_TERMINAL_EVENTS = frozenset({"run_completed", "run_failed"})
-_TERMINAL_STATUSES = frozenset({"done", "failed", "budget_exhausted"})
+_TERMINAL_EVENTS = frozenset({"run_completed", "run_failed", "awaiting_approval"})
+_TERMINAL_STATUSES = frozenset({"done", "failed", "budget_exhausted", "awaiting_approval"})
 
 
 def format_sse(event_id: int, event: PipelineEvent) -> str:

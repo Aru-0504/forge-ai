@@ -1,9 +1,10 @@
-"""FastAPI service: POST /runs, GET /runs/{id}, GET /runs/{id}/events (SSE), POST /agents/{id}/chat, GET /healthz."""
+"""FastAPI service: POST /runs, GET /runs/{id}, SSE /events, /approve, /regress, /agents/{id}/chat, /healthz."""
 
 from __future__ import annotations
 
 import base64
 import hmac
+import json
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -17,8 +18,14 @@ from pydantic import BaseModel, Field
 from forgeai import __version__
 from forgeai.config import Settings, get_settings
 from forgeai.core.ingest.parsers import IngestInputError
+from forgeai.core.regression import run_regression
 from forgeai.core.runtime.agent import ForgedAgentRuntime
-from forgeai.core.schemas import ChatMessage, ForgeRequest, SourceDocument
+from forgeai.core.schemas import (
+    ChatMessage,
+    ForgeRequest,
+    RequirementsDoc,
+    SourceDocument,
+)
 from forgeai.llm.base import BaseLLMClient, create_llm_client
 from forgeai.observability.logging import configure_logging
 from forgeai.observability.metrics import MetricsRegistry, MetricsTracker, RunBudget
@@ -41,10 +48,16 @@ class CreateRunJSONRequest(BaseModel):
     agent_name_hint: str | None = None
     sources: list[InlineSourcePayload] = Field(default_factory=list)
     urls: list[str] = Field(default_factory=list)
+    clarifying_answers: dict[str, str] = Field(default_factory=dict)
+    require_human_approval: bool = False
     chunk_size: int = Field(default=900, ge=100, le=8000)
     chunk_overlap: int = Field(default=150, ge=0, le=2000)
     max_loops: int | None = Field(default=None, ge=1, le=5)
     redact_pii: bool = True
+
+
+class ApproveRequirementsRequest(BaseModel):
+    requirements: RequirementsDoc | None = None
 
 
 class ChatTurnRequest(BaseModel):
@@ -87,7 +100,7 @@ def create_app(
     app = FastAPI(
         title="ForgeAI Agent Factory API",
         version=__version__,
-        description="Ingest domain corpora, forge evaluated tool-using agents, and chat with them.",
+        description="Ingest domain corpora, forge evaluated tool-using agents, approve requirements, run regressions, and chat.",
         lifespan=lifespan,
     )
     app.add_middleware(
@@ -129,10 +142,11 @@ def create_app(
         return metrics_registry.export_dict()
 
     async def _parse_run_request(request: Request) -> ForgeRequest:
-        """Accept both multipart/form-data (`brief` + uploaded `files`) and JSON payloads."""
         content_type = (request.headers.get("content-type") or "").lower()
         docs: list[SourceDocument] = []
         urls: list[str] = []
+        clarifying_answers: dict[str, str] = {}
+        require_human_approval = False
 
         if "multipart/form-data" in content_type:
             form = await request.form()
@@ -144,10 +158,24 @@ def create_app(
                 )
             agent_name_hint = str(form.get("agent_name_hint") or "").strip() or None
             redact_pii = str(form.get("redact_pii", "true")).lower() != "false"
+            require_human_approval = (
+                str(form.get("require_human_approval", "false")).lower() == "true"
+            )
             max_loops = int(str(form.get("max_loops") or cfg.max_improvement_loops))
 
-            raw_urls = form.getlist("urls")
-            for u in raw_urls:
+            raw_qa = str(form.get("clarifying_answers") or "").strip()
+            if raw_qa:
+                try:
+                    parsed_qa = json.loads(raw_qa)
+                    if isinstance(parsed_qa, dict):
+                        clarifying_answers = {str(k): str(v) for k, v in parsed_qa.items()}
+                except json.JSONDecodeError as exc:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid JSON in clarifying_answers: {exc}",
+                    ) from exc
+
+            for u in form.getlist("urls"):
                 if isinstance(u, str) and u.strip():
                     urls.append(u.strip())
 
@@ -176,6 +204,8 @@ def create_app(
                 )
             agent_name_hint = payload.agent_name_hint
             redact_pii = payload.redact_pii
+            require_human_approval = payload.require_human_approval
+            clarifying_answers = dict(payload.clarifying_answers)
             max_loops = payload.max_loops or cfg.max_improvement_loops
             urls = list(payload.urls)
             chunk_size = payload.chunk_size
@@ -199,7 +229,6 @@ def create_app(
                 detail="Empty submission: upload at least one readable document or provide a valid URL.",
             )
 
-        # Upfront security validation with clear user-facing errors (no stack traces)
         try:
             if docs:
                 validate_upload_batch(
@@ -217,6 +246,8 @@ def create_app(
             agent_name_hint=agent_name_hint,
             sources=docs,
             urls=urls,
+            clarifying_answers=clarifying_answers,
+            require_human_approval=require_human_approval,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             max_csv_rows=cfg.max_csv_rows,
@@ -236,6 +267,7 @@ def create_app(
             "status": "queued",
             "status_url": f"/runs/{run_id}",
             "events_url": f"/runs/{run_id}/events",
+            "approve_url": f"/runs/{run_id}/approve",
             "chat_url": f"/agents/{run_id}/chat",
         }
 
@@ -254,11 +286,19 @@ def create_app(
             if run["status"] in {"done", "budget_exhausted"}
             else None
         )
-        run_folder = Path(run["artifact_path"]) if run.get("artifact_path") else store.artifacts_dir / run_id
+        pending_approval = (
+            store.load_pending_approval(run_id)
+            if run["status"] == "awaiting_approval"
+            else None
+        )
+        run_folder = (
+            Path(run["artifact_path"]) if run.get("artifact_path") else store.artifacts_dir / run_id
+        )
         log_path = run_folder / "run_logs.jsonl"
         payload: dict[str, Any] = {
             **run,
             "has_logs": log_path.exists(),
+            "pending_approval": pending_approval,
             "artifacts": None,
         }
         if artifact is not None:
@@ -272,6 +312,7 @@ def create_app(
                     "config_hash": artifact.config_hash,
                     "prompt_versions": artifact.prompt_versions,
                 },
+                "requirements": artifact.requirements.model_dump(),
                 "analysis": artifact.analysis.model_dump(),
                 "groundability": artifact.groundability.model_dump(),
                 "agent_spec": artifact.agent_spec.model_dump(),
@@ -296,6 +337,26 @@ def create_app(
             headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
         )
 
+    @app.post("/runs/{run_id}/approve", status_code=202, dependencies=[Depends(_require_api_key)])
+    async def approve_run_requirements(
+        run_id: str,
+        payload: ApproveRequirementsRequest | None = None,
+    ) -> dict[str, Any]:
+        """Human Checkpoint: approve or edit the RequirementsDoc and resume generation."""
+        edited = payload.requirements if payload else None
+        approved = await job_queue.approve(run_id, edited_requirements=edited)
+        if approved is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Run {run_id!r} is not paused at a Human Checkpoint or lacks intake checkpoints.",
+            )
+        return {
+            "run_id": run_id,
+            "status": "queued",
+            "approved": True,
+            "requirements": approved.model_dump(),
+        }
+
     @app.post("/runs/{run_id}/resume", status_code=202, dependencies=[Depends(_require_api_key)])
     async def resume_run(run_id: str) -> dict[str, Any]:
         ok = await job_queue.resume(run_id)
@@ -305,6 +366,55 @@ def create_app(
                 detail=f"Run {run_id!r} not found or lacks persisted inputs for resume.",
             )
         return {"run_id": run_id, "status": "queued", "resumed": True}
+
+    @app.post("/runs/{run_id}/regress", dependencies=[Depends(_require_api_key)])
+    async def regress_run(run_id: str, request: Request) -> dict[str, Any]:
+        """Regression Mode: regenerate agent on updated docs and re-run run `{run_id}`'s old eval set."""
+        baseline = store.load_artifact(run_id)
+        if baseline is None:
+            raise HTTPException(status_code=404, detail=f"Baseline artifact for run {run_id!r} not found.")
+
+        form = await request.form()
+        docs: list[SourceDocument] = []
+        for key in ("files", "docs"):
+            for item in form.getlist(key):
+                if hasattr(item, "read"):
+                    data = await item.read()
+                    fname = getattr(item, "filename", None) or "updated.txt"
+                    docs.append(SourceDocument(filename=fname, content=data))
+        if not docs:
+            raise HTTPException(status_code=400, detail="Upload at least one updated document in 'files'.")
+
+        try:
+            validate_upload_batch(
+                [(d.filename, d.content) for d in docs],
+                max_files=cfg.max_files_per_run,
+                max_bytes_per_file=cfg.max_upload_bytes,
+            )
+            regenerated, report = run_regression(
+                baseline_artifact=baseline,
+                updated_sources=docs,
+                llm=client,
+                config_hash=cfg.config_hash(),
+            )
+        except (UploadValidationError, IngestInputError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        # Persist regenerated artifact and regression report under store
+        store.create_run(
+            run_id=regenerated.run_id,
+            request=ForgeRequest(goal=regenerated.goal, sources=docs),
+            provider=client.provider_name,
+            model=client.model,
+            model_version=client.model_version,
+            config_hash=cfg.config_hash(),
+        )
+        reg_dir = store.save_artifact(regenerated)
+        (reg_dir / "regression_report.json").write_text(
+            report.model_dump_json(indent=2) + "\n", encoding="utf-8"
+        )
+        (reg_dir / "regression_report.md").write_text(report.report_markdown, encoding="utf-8")
+        return report.model_dump()
 
     @app.post("/agents/{agent_id}/chat", dependencies=[Depends(_require_api_key)])
     async def chat_with_agent(agent_id: str, payload: ChatTurnRequest) -> dict[str, Any]:

@@ -8,8 +8,8 @@ import signal
 import uuid
 
 from forgeai.config import Settings, get_settings
-from forgeai.core.schemas import ForgeRequest
-from forgeai.core.stages.pipeline import ForgePipeline
+from forgeai.core.schemas import ForgeRequest, RequirementsDoc
+from forgeai.core.stages.pipeline import ForgePipeline, HumanApprovalRequired
 from forgeai.llm.base import BaseLLMClient, create_llm_client
 from forgeai.observability.logging import configure_logging, get_logger
 from forgeai.observability.metrics import MetricsRegistry, RunBudget
@@ -96,6 +96,19 @@ class ForgeJobQueue:
         self._wake_event.set()
         return True
 
+    async def approve(
+        self,
+        run_id: str,
+        edited_requirements: RequirementsDoc | None = None,
+    ) -> RequirementsDoc | None:
+        """Approve/edit requirements for a paused Human Checkpoint run and wake workers."""
+        approved = self.store.approve_requirements(run_id, edited=edited_requirements)
+        if approved is None:
+            return None
+        self._done_events[run_id] = asyncio.Event()
+        self._wake_event.set()
+        return approved
+
     async def wait_for(self, run_id: str, timeout: float = 30.0) -> dict | None:
         evt = self._done_events.get(run_id)
         if evt is not None:
@@ -167,6 +180,10 @@ class ForgeJobQueue:
             )
             self.store.save_artifact(artifact)
             self.registry.inc(f"forge_runs_{artifact.status}")
+        except HumanApprovalRequired as pause:
+            self.store.save_pending_approval(run_id, pause.requirements, pause.groundability)
+            self.registry.inc("forge_runs_awaiting_approval")
+            logger.info("Run %s paused at Human Checkpoint awaiting approval", run_id)
         except Exception as exc:
             self.store.update_run_status(
                 run_id,

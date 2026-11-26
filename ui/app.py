@@ -1,4 +1,4 @@
-"""ForgeAI Control Room — Streamlit frontend for the Agent Factory, Scorecard Inspector, and Chat Runner."""
+"""ForgeAI Control Room — Factory, Human Checkpoint, Scorecard Inspector, Regression & Baseline, Chat Runner."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from typing import Any
 
 import streamlit as st
 
-# Ensure sibling modules in `ui/` import reliably under `streamlit run ui/app.py`
 UI_DIR = Path(__file__).resolve().parent
 if str(UI_DIR) not in sys.path:
     sys.path.insert(0, str(UI_DIR))
@@ -20,6 +19,7 @@ from api_client import (  # noqa: E402
     ForgeAPIClient,
     build_artifact_zip_bytes,
     discover_local_demos,
+    load_baseline_comparison,
     load_demo_as_run_detail,
     suggest_sample_prompts,
 )
@@ -49,6 +49,61 @@ def _render_hero(title: str, subtitle: str) -> None:
     )
 
 
+def _render_approval_editor(client: ForgeAPIClient, detail: dict[str, Any]) -> None:
+    """Human Checkpoint editor: review/edit RequirementsDoc and approve to continue generation."""
+    run_id = detail["run_id"]
+    pending = detail.get("pending_approval") or {}
+    req = pending.get("requirements") or {}
+    ground = pending.get("groundability") or {}
+
+    st.warning(f"Run `{run_id}` is paused at the **Human Checkpoint** (`awaiting_approval`).")
+    if ground.get("missing_gaps"):
+        st.info(
+            "Groundability guard flagged unsupported gaps (automatically added to must-refuse): "
+            + ", ".join(f"`{g}`" for g in ground["missing_gaps"])
+        )
+
+    with st.form(f"approve_form_{run_id}"):
+        scope = st.text_area("Scope", value=req.get("scope", ""), height=80)
+        c1, c2 = st.columns(2)
+        with c1:
+            audience = st.text_input("Audience", value=req.get("audience", ""))
+        with c2:
+            tone = st.text_input("Tone", value=req.get("tone", ""))
+
+        must_ans = st.text_area(
+            "Must-Answer Topics (one per line)",
+            value="\n".join(req.get("must_answer_topics", [])),
+            height=90,
+        )
+        must_ref = st.text_area(
+            "Must-Refuse Topics (one per line)",
+            value="\n".join(req.get("must_refuse_topics", [])),
+            height=90,
+        )
+        approve_btn = st.form_submit_button(
+            "Approve Requirements & Continue Generation",
+            type="primary",
+            use_container_width=True,
+        )
+
+    if approve_btn:
+        updated_req = {
+            **req,
+            "scope": scope.strip(),
+            "audience": audience.strip(),
+            "tone": tone.strip(),
+            "must_answer_topics": [ln.strip() for ln in must_ans.splitlines() if ln.strip()],
+            "must_refuse_topics": [ln.strip() for ln in must_ref.splitlines() if ln.strip()],
+            "approved_by_human": True,
+        }
+        code, body = client.approve_run(run_id, updated_req)
+        if code >= 400:
+            st.error(f"Approval failed ({code}): {body}")
+            return
+        _stream_run_progress(client, run_id)
+
+
 def _render_scorecard_view(detail: dict[str, Any]) -> None:
     artifacts = detail.get("artifacts")
     if not artifacts:
@@ -59,11 +114,11 @@ def _render_scorecard_view(detail: dict[str, Any]) -> None:
     spec = artifacts["agent_spec"]
     scorecard = artifacts["scorecard"]
     eval_report = artifacts["eval_report"]
+    requirements = artifacts.get("requirements", {})
     groundability = artifacts.get("groundability", {})
     degraded = artifacts.get("degraded_stages", [])
     manifest = artifacts.get("manifest", {})
 
-    # Header status & security gate strip
     badges = (
         status_pill_html(detail.get("status", scorecard.get("status", "done")))
         + gate_pill_html("Direct Injection Defense", bool(scorecard.get("safety_passed", True)))
@@ -71,12 +126,14 @@ def _render_scorecard_view(detail: dict[str, Any]) -> None:
     )
     st.markdown(badges, unsafe_allow_html=True)
 
-    # Top KPI row
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Agent", spec["name"])
     c2.metric("Pass Rate", f"{scorecard['pass_rate']:.0%}")
     c3.metric("Avg Score", f"{scorecard['average_score']:.2f}")
-    c4.metric("Loops", f"{scorecard.get('loops_executed', 1)} (best #{scorecard.get('best_iteration', 1)})")
+    c4.metric(
+        "Loops",
+        f"{scorecard.get('loops_executed', 1)} (best #{scorecard.get('best_iteration', 1)})",
+    )
     c5.metric("Total Tokens", f"{scorecard.get('total_tokens', 0):,}")
     c6.metric("Latency", f"{scorecard.get('total_latency_ms', 0.0):.0f} ms")
 
@@ -91,7 +148,6 @@ def _render_scorecard_view(detail: dict[str, Any]) -> None:
                     f"- **`{d['stage']}`** ({d['attempts']} attempts): `{d['reason']}` → *{d['fallback_used']}*"
                 )
 
-    # Download action bar
     dl1, dl2, dl3, dl4 = st.columns(4)
     zip_bytes = build_artifact_zip_bytes(run_id, artifacts)
     dl1.download_button(
@@ -123,8 +179,15 @@ def _render_scorecard_view(detail: dict[str, Any]) -> None:
         use_container_width=True,
     )
 
-    tab_overview, tab_evals, tab_spec, tab_report, tab_repro = st.tabs(
-        ["Telemetry & Loops", "Evaluation Cases", "Agent Spec & Prompt", "Report (report.md)", "Reproducibility"]
+    tab_overview, tab_req, tab_evals, tab_spec, tab_report, tab_repro = st.tabs(
+        [
+            "Telemetry & Loops",
+            "Requirements & Interview",
+            "Evaluation Cases",
+            "Agent Spec & Contracts",
+            "Report (report.md)",
+            "Reproducibility",
+        ]
     )
 
     with tab_overview:
@@ -157,13 +220,37 @@ def _render_scorecard_view(detail: dict[str, Any]) -> None:
             st.dataframe(loop_history, use_container_width=True)
 
         if groundability:
-            st.subheader("Groundability Audit")
+            st.subheader("Groundability Guard Audit")
             g1, g2, g3 = st.columns(3)
             g1.metric("Groundable", "Yes" if groundability.get("is_groundable") else "No")
             g2.metric("Coverage", f"{groundability.get('coverage_score', 0.0):.0%}")
             g3.metric("Detected Scripts", ", ".join(groundability.get("detected_scripts", ["latin"])))
             for w in groundability.get("warnings", []):
                 st.info(w)
+
+    with tab_req:
+        if requirements:
+            st.markdown(f"**Scope:** {requirements.get('scope', '')}")
+            st.markdown(f"**Audience:** {requirements.get('audience', '')}")
+            st.markdown(f"**Tone:** {requirements.get('tone', '')}")
+            st.markdown(
+                f"**Human Approved:** {'Yes' if requirements.get('approved_by_human') else 'Unattended defaults'}"
+            )
+            r1, r2 = st.columns(2)
+            with r1:
+                st.markdown("**Must-Answer Topics**")
+                for t in requirements.get("must_answer_topics", []):
+                    st.markdown(f"- {t}")
+            with r2:
+                st.markdown("**Must-Refuse Topics (incl. Groundability Gaps)**")
+                for t in requirements.get("must_refuse_topics", []):
+                    st.markdown(f"- {t}")
+            qa = requirements.get("clarifying_qa", [])
+            if qa:
+                st.subheader("Intake Interviewer Q&A (≤ 5 Questions)")
+                st.dataframe(qa, use_container_width=True, hide_index=True)
+        else:
+            st.info("No structured requirements document stored for this run.")
 
     with tab_evals:
         st.caption(eval_report.get("summary", ""))
@@ -177,17 +264,30 @@ def _render_scorecard_view(detail: dict[str, Any]) -> None:
                 st.markdown(f"**Question:** {res['question']}")
                 st.markdown(f"**Answer:** {res['answer']}")
                 if res.get("citations"):
-                    st.markdown(render_chips_html(res["citations"], prefix="cite: "), unsafe_allow_html=True)
-                st.json({"checks": res.get("checks", {}), "notes": res.get("notes", ""), "latency_ms": res.get("latency_ms", 0.0)})
+                    st.markdown(
+                        render_chips_html(res["citations"], prefix="cite: "),
+                        unsafe_allow_html=True,
+                    )
+                st.json(
+                    {
+                        "checks": res.get("checks", {}),
+                        "notes": res.get("notes", ""),
+                        "latency_ms": res.get("latency_ms", 0.0),
+                    }
+                )
 
     with tab_spec:
         st.markdown(f"**Domain:** {spec['domain']}")
         st.markdown(f"**Persona:** {spec['persona']}")
         st.markdown("**Enabled Tools:**")
         st.markdown(render_chips_html(spec.get("enabled_tools", [])), unsafe_allow_html=True)
-        st.markdown("**Guardrails:**")
-        st.markdown(render_chips_html(spec.get("guardrails", [])), unsafe_allow_html=True)
-        st.markdown(f"**Refusal Policy:** {spec.get('refusal_policy', '')}")
+        sc1, sc2 = st.columns(2)
+        with sc1:
+            st.markdown("**Declarative Retrieval Config**")
+            st.json(spec.get("retrieval_config", {}))
+        with sc2:
+            st.markdown("**Declarative Output Contract**")
+            st.json(spec.get("output_contract", {}))
         st.markdown("**Compiled System Prompt:**")
         st.code(spec["system_prompt"], language="markdown")
 
@@ -210,7 +310,7 @@ def _render_scorecard_view(detail: dict[str, Any]) -> None:
 
 
 def _stream_run_progress(client: ForgeAPIClient, run_id: str) -> None:
-    st.info(f"Queued background run `{run_id}` — streaming live SSE events...")
+    st.info(f"Streaming live SSE events for run `{run_id}`...")
     stepper_slot = st.empty()
     progress_bar = st.progress(0.0)
     log_slot = st.empty()
@@ -239,6 +339,9 @@ def _stream_run_progress(client: ForgeAPIClient, run_id: str) -> None:
             elif etype == "stage_degraded":
                 stage_states[stage] = "degraded"
                 stage_notes[stage] = "degraded"
+            elif etype == "awaiting_approval":
+                stage_states[stage] = "degraded"
+                stage_notes[stage] = "approval"
 
         if etype == "run_failed" and stage in stage_states:
             stage_states[stage] = "failed"
@@ -248,12 +351,13 @@ def _stream_run_progress(client: ForgeAPIClient, run_id: str) -> None:
         events_log.append(f"[{prog:4.0%}] ({stage}) {msg}")
         log_slot.code("\n".join(events_log[-18:]), language="text")
 
-        if etype in {"run_completed", "run_failed"}:
+        if etype in {"run_completed", "run_failed", "awaiting_approval"}:
             break
 
     detail = client.get_run(run_id)
-    st.session_state["selected_inspector_run"] = f"[API] {run_id}"
-    if detail.get("status") in {"done", "budget_exhausted"}:
+    if detail.get("status") == "awaiting_approval":
+        _render_approval_editor(client, detail)
+    elif detail.get("status") in {"done", "budget_exhausted"}:
         st.success(f"Run `{run_id}` finished with status `{detail['status']}`!")
         _render_scorecard_view(detail)
     else:
@@ -263,10 +367,9 @@ def _stream_run_progress(client: ForgeAPIClient, run_id: str) -> None:
 def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
     _render_hero(
         "⚒️ ForgeAI Agent Factory",
-        "Upload domain documents, define your brief, and watch the 7-stage iterative pipeline forge, evaluate, and harden a specialist agent.",
+        "Upload domain documents, define your brief, optionally pause at the Human Checkpoint to edit requirements, and watch the 7-stage iterative pipeline run live.",
     )
 
-    # Quick preset loader for instant demos
     pcol1, pcol2 = st.columns([3, 1])
     with pcol1:
         preset_choice = st.selectbox(
@@ -289,7 +392,9 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
     elif preset_choice == "Custom Upload" and load_preset:
         st.session_state["factory_preset_files"] = []
 
-    preset_paths = [Path(p) for p in st.session_state.get("factory_preset_files", []) if Path(p).exists()]
+    preset_paths = [
+        Path(p) for p in st.session_state.get("factory_preset_files", []) if Path(p).exists()
+    ]
 
     with st.form("forge_form", clear_on_submit=False):
         brief = st.text_area(
@@ -298,7 +403,7 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
             placeholder="Describe what the forged agent should do, what calculations/lookups it needs, and its escalation rules...",
             height=95,
         )
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         with c1:
             agent_name_hint = st.text_input(
                 "Agent Name Hint (optional)",
@@ -308,7 +413,13 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
         with c2:
             max_loops = st.slider("Max Improvement Loops", min_value=1, max_value=3, value=3)
         with c3:
-            redact_pii = st.checkbox("Redact PII during ingestion", value=True)
+            redact_pii = st.checkbox("Redact PII on ingest", value=True)
+        with c4:
+            require_human_approval = st.checkbox(
+                "Human Approval Checkpoint",
+                value=False,
+                help="Pause after intake & groundability so you can review/edit requirements before generation.",
+            )
 
         uploaded_files = st.file_uploader(
             "Domain Documents (.md, .txt, .csv, .json, .yaml, .pdf, .docx, .html)",
@@ -319,7 +430,9 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
                 "Using preset source files: " + ", ".join(f"`{p.name}`" for p in preset_paths)
             )
 
-        submitted = st.form_submit_button("Launch Forge Run", type="primary", use_container_width=True)
+        submitted = st.form_submit_button(
+            "Launch Forge Run", type="primary", use_container_width=True
+        )
 
     if submitted:
         if len(brief.strip()) < 5:
@@ -338,10 +451,7 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
                 for f in uploaded_files
             ]
         elif preset_paths:
-            files_to_send = [
-                (p.name, p.read_bytes(), "text/plain")
-                for p in preset_paths
-            ]
+            files_to_send = [(p.name, p.read_bytes(), "text/plain") for p in preset_paths]
 
         if not files_to_send:
             st.error("Upload at least one document or apply a demo preset first.")
@@ -353,6 +463,7 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
             agent_name_hint=agent_name_hint,
             max_loops=max_loops,
             redact_pii=redact_pii,
+            require_human_approval=require_human_approval,
         )
         if code >= 400:
             st.error(f"Run rejected ({code}): {body.get('detail', body)}")
@@ -363,7 +474,9 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
     st.divider()
     st.subheader("Recent Background Runs")
     if not api_online:
-        st.info("API is offline — switch to **Scorecard Inspector** or **Chat Runner** to explore committed demos.")
+        st.info(
+            "API is offline — switch to **Scorecard Inspector**, **Regression & Baseline**, or **Chat Runner** to explore committed demos."
+        )
         return
 
     try:
@@ -376,6 +489,12 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
         st.info("No API runs yet. Apply a demo preset above and click **Launch Forge Run**.")
         return
 
+    # Show inline Human Checkpoint editors for any paused runs
+    awaiting = [r for r in runs if r["status"] == "awaiting_approval"]
+    for paused in awaiting:
+        detail = client.get_run(paused["run_id"])
+        _render_approval_editor(client, detail)
+
     st.dataframe(
         [
             {
@@ -383,7 +502,9 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
                 "status": r["status"],
                 "agent_name": r.get("agent_name") or "(pending)",
                 "domain": r.get("domain", ""),
-                "pass_rate": f"{r['eval_pass_rate']:.0%}" if r.get("eval_pass_rate") is not None else "—",
+                "pass_rate": f"{r['eval_pass_rate']:.0%}"
+                if r.get("eval_pass_rate") is not None
+                else "—",
                 "model": f"{r.get('provider', '')}:{r.get('model', '')}",
                 "created_at": r.get("created_at", "")[:19].replace("T", " "),
             }
@@ -393,12 +514,15 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
         hide_index=True,
     )
 
-    # One-click resume for failed / budget_exhausted / interrupted runs
-    resumable = [r["run_id"] for r in runs if r["status"] in {"failed", "budget_exhausted", "running"}]
+    resumable = [
+        r["run_id"] for r in runs if r["status"] in {"failed", "budget_exhausted", "running"}
+    ]
     if resumable:
         rcol1, rcol2 = st.columns([3, 1])
         with rcol1:
-            to_resume = st.selectbox("Resume interrupted or failed run from checkpoints", resumable)
+            to_resume = st.selectbox(
+                "Resume interrupted or failed run from checkpoints", resumable
+            )
         with rcol2:
             st.write("")
             st.write("")
@@ -413,7 +537,7 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
 def render_inspector_page(client: ForgeAPIClient, api_online: bool) -> None:
     _render_hero(
         "📊 Scorecard & Artifact Inspector",
-        "Inspect per-stage token and latency telemetry, loop progression, security gates, system prompts, and downloadable artifact bundles.",
+        "Inspect per-stage telemetry, structured requirements & interview Q&A, declarative retrieval/output contracts, and downloadable artifact bundles.",
     )
 
     choices: dict[str, tuple[str, Any]] = {}
@@ -440,7 +564,123 @@ def render_inspector_page(client: ForgeAPIClient, api_online: bool) -> None:
     else:
         detail = load_demo_as_run_detail(Path(target))
 
-    _render_scorecard_view(detail)
+    if detail.get("status") == "awaiting_approval" and kind == "api":
+        _render_approval_editor(client, detail)
+    else:
+        _render_scorecard_view(detail)
+
+
+def render_regression_and_baseline_page(client: ForgeAPIClient, api_online: bool) -> None:
+    _render_hero(
+        "🔁 Regression Mode & Factory vs. Human Baseline",
+        "Re-run historical eval sets when documents change to catch regressions, and compare the factory-forged agent head-to-head against a hand-written human baseline.",
+    )
+
+    tab_reg, tab_base = st.tabs(["Regression Mode (Docs Changed)", "Factory vs. Human Baseline"])
+
+    with tab_reg:
+        st.caption(
+            "Select a baseline forged agent, upload updated/edited documents, regenerate the agent, "
+            "and re-run the **old** eval set to see exactly what broke or improved."
+        )
+        choices: dict[str, tuple[str, Any]] = {}
+        if api_online:
+            try:
+                for r in client.list_runs(limit=50):
+                    if r.get("status") in {"done", "budget_exhausted"}:
+                        choices[f"[API] {r.get('agent_name') or r['run_id']} ({r['run_id']})"] = (
+                            "api",
+                            r["run_id"],
+                        )
+            except Exception:
+                pass
+        for name, path in discover_local_demos().items():
+            choices[f"[Demo] {name}"] = ("demo", path)
+
+        if not choices:
+            st.info("No baseline agents found.")
+        else:
+            sel = st.selectbox("Baseline Agent", list(choices.keys()))
+            mode, target = choices[sel]
+            updated_files = st.file_uploader(
+                "Upload Updated Document(s)",
+                accept_multiple_files=True,
+                key="regression_uploader",
+            )
+            if st.button("Run Regression Check", type="primary"):
+                if not updated_files:
+                    st.error("Upload at least one updated document.")
+                else:
+                    files_payload = [
+                        (f.name, f.getvalue(), f.type or "text/plain") for f in updated_files
+                    ]
+                    if mode == "api":
+                        code, report = client.regress_run(str(target), files_payload)
+                        if code >= 400:
+                            st.error(f"Regression failed ({code}): {report}")
+                            report = None
+                    else:
+                        from forgeai.config import get_settings
+                        from forgeai.core.regression import run_regression
+                        from forgeai.core.schemas import ForgeArtifact, SourceDocument
+                        from forgeai.llm.base import create_llm_client
+
+                        cfg = get_settings()
+                        base_art = ForgeArtifact.load_from_dir(Path(target))
+                        docs = [SourceDocument(filename=n, content=b) for n, b, _ in files_payload]
+                        _, rep = run_regression(
+                            baseline_artifact=base_art,
+                            updated_sources=docs,
+                            llm=create_llm_client(cfg),
+                            config_hash=cfg.config_hash(),
+                        )
+                        report = rep.model_dump()
+
+                    if report:
+                        if report["has_regressions"]:
+                            st.error(report["summary"])
+                        else:
+                            st.success(report["summary"])
+                        r1, r2, r3, r4 = st.columns(4)
+                        r1.metric("Old Pass Rate", f"{report['old_pass_rate']:.0%}")
+                        r2.metric("New Pass Rate", f"{report['new_pass_rate']:.0%}")
+                        r3.metric("Regressed", report["regressed_count"])
+                        r4.metric("Fixed", report["fixed_count"])
+                        st.dataframe(report["diffs"], use_container_width=True, hide_index=True)
+                        st.download_button(
+                            "Download regression_report.md",
+                            data=report.get("report_markdown", ""),
+                            file_name="regression_report.md",
+                            mime="text/markdown",
+                        )
+
+    with tab_base:
+        comp = load_baseline_comparison()
+        if not comp:
+            st.info(
+                "No committed comparison report found yet. Run `python demos/run_demos.py` to generate `demos/baseline_comparison/`."
+            )
+        else:
+            b1, b2, b3, b4 = st.columns(4)
+            b1.metric("Factory Pass Rate", f"{comp['factory_pass_rate']:.0%}")
+            b2.metric("Human Baseline Pass Rate", f"{comp['baseline_pass_rate']:.0%}")
+            b3.metric("Factory Avg Score", f"{comp['factory_avg_score']:.2f}")
+            b4.metric("Baseline Avg Score", f"{comp['baseline_avg_score']:.2f}")
+
+            w1, w2 = st.columns(2)
+            with w1:
+                st.subheader("Where Factory Wins")
+                for line in comp.get("where_factory_wins", []):
+                    st.markdown(f"- {line}")
+            with w2:
+                st.subheader("Where Human Baseline Wins")
+                for line in comp.get("where_baseline_wins", []):
+                    st.markdown(f"- {line}")
+
+            st.subheader("Head-to-Head Case Table")
+            st.dataframe(comp.get("cases", []), use_container_width=True, hide_index=True)
+            with st.expander("Full comparison_report.md"):
+                st.markdown(comp.get("report_markdown", ""))
 
 
 def render_chat_page(client: ForgeAPIClient, api_online: bool) -> None:
@@ -484,7 +724,6 @@ def render_chat_page(client: ForgeAPIClient, api_online: bool) -> None:
             st.session_state.pop(session_key, None)
             st.rerun()
 
-    # Load agent spec card
     if mode == "api":
         detail = client.get_run(str(target))
     else:
@@ -502,26 +741,34 @@ def render_chat_page(client: ForgeAPIClient, api_online: bool) -> None:
         unsafe_allow_html=True,
     )
 
-    # Quick-try sample prompts (including prompt-injection test!)
     samples = suggest_sample_prompts(domain, tools)
     st.caption("Quick-try prompts (click to send):")
     btn_cols = st.columns(len(samples))
     queued_prompt: str | None = None
     for idx, (col, sample_q) in enumerate(zip(btn_cols, samples, strict=False)):
         short_label = "🛡️ Test Injection" if "ignore" in sample_q.lower() else f"Try Q{idx + 1}"
-        if col.button(short_label, key=f"sample_{selected_label}_{idx}", help=sample_q, use_container_width=True):
+        if col.button(
+            short_label,
+            key=f"sample_{selected_label}_{idx}",
+            help=sample_q,
+            use_container_width=True,
+        ):
             queued_prompt = sample_q
 
-    # Render message history
     for msg in st.session_state[history_key]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
             if msg.get("blocked_injection"):
                 st.markdown(status_pill_html("INJECTION BLOCKED"), unsafe_allow_html=True)
             if msg.get("citations"):
-                st.markdown(render_chips_html(msg["citations"], prefix="cite: "), unsafe_allow_html=True)
+                st.markdown(
+                    render_chips_html(msg["citations"], prefix="cite: "),
+                    unsafe_allow_html=True,
+                )
             if msg.get("tool_traces"):
-                with st.expander(f"Tool Calls ({len(msg['tool_traces'])}) · {msg.get('latency_ms', 0.0):.0f} ms"):
+                with st.expander(
+                    f"Tool Calls ({len(msg['tool_traces'])}) · {msg.get('latency_ms', 0.0):.0f} ms"
+                ):
                     st.json(msg["tool_traces"])
 
     prompt = st.chat_input("Ask your forged agent a question...") or queued_prompt
@@ -605,7 +852,12 @@ def main() -> None:
 
         page = st.radio(
             "Workspace",
-            ["⚒️ Agent Factory", "📊 Scorecard Inspector", "💬 Chat Runner"],
+            [
+                "⚒️ Agent Factory",
+                "📊 Scorecard Inspector",
+                "🔁 Regression & Baseline",
+                "💬 Chat Runner",
+            ],
             label_visibility="collapsed",
         )
 
@@ -646,6 +898,8 @@ def main() -> None:
         render_factory_page(client, api_online)
     elif page == "📊 Scorecard Inspector":
         render_inspector_page(client, api_online)
+    elif page == "🔁 Regression & Baseline":
+        render_regression_and_baseline_page(client, api_online)
     else:
         render_chat_page(client, api_online)
 

@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 
 from forgeai.core.ingest.index import HybridKnowledgeIndex
-from forgeai.core.schemas import KnowledgeIndexData
+from forgeai.core.schemas import KnowledgeIndexData, RetrievalConfig
 from forgeai.core.tools.registry import ToolDefinition, ToolRegistry
 from forgeai.security.safe_math import MathEvaluationError, safe_eval_math
 from forgeai.security.url_guard import URLValidationError, validate_url
@@ -34,7 +34,7 @@ def select_tools_for_agent(
     recommended: list[str] | None = None,
     allowed_http_hosts: list[str] | None = None,
 ) -> list[str]:
-    """Deterministic tool-selection rules combining corpus structure, brief intent, and security allowlists."""
+    """Deterministic tool-selection rules: attach ONLY tools the brief and corpus genuinely need."""
     selected: list[str] = ["kb_search", "policy_cite"]
 
     # Always enable table_lookup when structured tables are ingested
@@ -62,22 +62,37 @@ def select_tools_for_agent(
 def build_default_registry(
     index: HybridKnowledgeIndex,
     *,
+    retrieval_config: RetrievalConfig | None = None,
     allowed_http_hosts: list[str] | None = None,
     http_client: httpx.Client | None = None,
 ) -> ToolRegistry:
-    """Create a ToolRegistry wired to a forged agent's KnowledgeIndex and security allowlists."""
+    """Create a ToolRegistry wired to a forged agent's KnowledgeIndex, RetrievalConfig, and allowlists."""
     registry = ToolRegistry()
+    rcfg = retrieval_config or RetrievalConfig()
     host_allowlist = list(allowed_http_hosts or [])
 
     def _kb_search(args: dict[str, Any]) -> dict[str, Any]:
         query = str(args.get("query", "")).strip()
         if not query:
             return {"error": "query is required"}
-        top_k = max(1, min(10, int(args.get("top_k", 4))))
+        top_k = max(1, min(15, int(args.get("top_k", rcfg.top_k))))
         source_filter = args.get("source")
-        hits = index.search(query, top_k=top_k, source_filter=source_filter)
+        hits = index.search(
+            query,
+            top_k=top_k,
+            source_filter=source_filter,
+            bm25_weight=rcfg.bm25_weight,
+            cosine_weight=rcfg.cosine_weight,
+            min_score=rcfg.min_score_threshold,
+        )
         return {
             "query": query,
+            "retrieval_config": {
+                "top_k": top_k,
+                "bm25_weight": rcfg.bm25_weight,
+                "cosine_weight": rcfg.cosine_weight,
+                "min_score_threshold": rcfg.min_score_threshold,
+            },
             "matches": [
                 {
                     "source": h.chunk.source,
@@ -163,7 +178,7 @@ def build_default_registry(
                 resp = http_client.get(safe_url)
             else:
                 with httpx.Client(timeout=10.0, follow_redirects=False) as client:
-                    resp = client.get(safe_url, headers={"User-Agent": "ForgeAI-Tool/0.1"})
+                    resp = client.get(safe_url, headers={"User-Agent": "ForgeAI-Tool/0.2"})
         except httpx.HTTPError as exc:
             return {"error": f"HTTP request failed: {exc}"}
 
@@ -178,7 +193,7 @@ def build_default_registry(
         ToolDefinition(
             name="kb_search",
             description="Search ingested documents using hybrid BM25 + TF-IDF retrieval.",
-            parameters_schema={"query": "string", "top_k": "int (1-10)", "source": "optional string"},
+            parameters_schema={"query": "string", "top_k": "int (1-15)", "source": "optional string"},
             handler=_kb_search,
         )
     )

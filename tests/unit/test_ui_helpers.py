@@ -111,6 +111,10 @@ def test_streamlit_app_renders_headlessly_without_exceptions(
     at.sidebar.radio[0].set_value("📊 Scorecard Inspector").run()
     assert not at.exception
 
+    # Switch to Regression & Baseline and verify clean render
+    at.sidebar.radio[0].set_value("🔁 Regression & Baseline").run()
+    assert not at.exception
+
     # Switch to Chat Runner and verify clean render
     at.sidebar.radio[0].set_value("💬 Chat Runner").run()
     assert not at.exception

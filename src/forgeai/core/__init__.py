@@ -1,10 +1,16 @@
-"""Pure ForgeAI core package: schemas, ingest, tools, prompts, 7-stage pipeline, and runtime."""
+"""Pure ForgeAI core package: schemas, ingest, tools, prompts, 7-stage pipeline, runtime, regression, comparison."""
 
+from forgeai.core.comparison import compare_factory_vs_baseline, render_comparison_markdown
+from forgeai.core.regression import render_regression_markdown, run_regression
 from forgeai.core.runtime.agent import ForgedAgentRuntime
 from forgeai.core.schemas import (
     AgentSpec,
+    BaselineComparisonCase,
+    BaselineComparisonReport,
     ChatMessage,
     ChatResponse,
+    ClarifyingQA,
+    ClarifyingQuestion,
     CriticFeedback,
     DegradedStageRecord,
     DocumentChunk,
@@ -17,19 +23,28 @@ from forgeai.core.schemas import (
     GroundabilityReport,
     KnowledgeIndexData,
     LoopRecord,
+    OutputContract,
     PipelineEvent,
+    RegressionCaseDiff,
+    RegressionReport,
+    RequirementsDoc,
+    RetrievalConfig,
     RunStatus,
     Scorecard,
     SourceDocument,
     StructuredTable,
     ToolTrace,
 )
-from forgeai.core.stages.pipeline import ForgePipeline
+from forgeai.core.stages.pipeline import ForgePipeline, HumanApprovalRequired
 
 __all__ = [
     "AgentSpec",
+    "BaselineComparisonCase",
+    "BaselineComparisonReport",
     "ChatMessage",
     "ChatResponse",
+    "ClarifyingQA",
+    "ClarifyingQuestion",
     "CriticFeedback",
     "DegradedStageRecord",
     "DocumentChunk",
@@ -42,12 +57,22 @@ __all__ = [
     "ForgeRequest",
     "ForgedAgentRuntime",
     "GroundabilityReport",
+    "HumanApprovalRequired",
     "KnowledgeIndexData",
     "LoopRecord",
+    "OutputContract",
     "PipelineEvent",
+    "RegressionCaseDiff",
+    "RegressionReport",
+    "RequirementsDoc",
+    "RetrievalConfig",
     "RunStatus",
     "Scorecard",
     "SourceDocument",
     "StructuredTable",
     "ToolTrace",
+    "compare_factory_vs_baseline",
+    "render_comparison_markdown",
+    "render_regression_markdown",
+    "run_regression",
 ]

@@ -1,9 +1,10 @@
 {
   "domain": "Maritime Ship Spares & Parts Operations",
-  "summary": "Intake complete for brief: Assist marine engineers with ship spares SKU lookups, stock verification, order cost calculations, and emergency requisition SOPs.",
+  "summary": "Answer grounded questions and deterministic calculations for: Assist marine engineers with ship spares SKU lookups, stock verification, order cost calculations, and emergency requisition SOPs.",
   "target_users": [
-    "Internal operators",
-    "Domain specialists"
+    "Chief Engineers",
+    "Vessel Technical Superintendents",
+    "and Marine Procurement Officers"
   ],
   "key_topics": [
     "part_lookup",

@@ -149,6 +149,7 @@ def status_pill_html(status: str) -> str:
         "pass": "pill-green",
         "running": "pill-blue",
         "queued": "pill-slate",
+        "awaiting_approval": "pill-amber",
         "budget_exhausted": "pill-amber",
         "degraded": "pill-amber",
         "failed": "pill-red",

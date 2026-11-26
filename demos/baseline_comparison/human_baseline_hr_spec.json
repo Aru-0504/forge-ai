@@ -1,0 +1,40 @@
+{
+  "name": "Human-Written HR Assistant (Baseline)",
+  "slug": "human-baseline-hr-assistant",
+  "domain": "Human Resources & Workplace Policy",
+  "description": "Hand-crafted HR policy assistant written manually without the ForgeAI factory loop.",
+  "persona": "Friendly, concise HR coordinator answering employee handbook questions.",
+  "system_prompt": "You are an HR assistant for Acme Corp. Search the HR policy handbook and answer employee questions clearly and briefly. Always cite the handbook section.",
+  "enabled_tools": [
+    "kb_search"
+  ],
+  "retrieval_config": {
+    "chunk_size": 900,
+    "chunk_overlap": 150,
+    "top_k": 3,
+    "bm25_weight": 0.7,
+    "cosine_weight": 0.3,
+    "min_score_threshold": 0.05
+  },
+  "output_contract": {
+    "format": "markdown",
+    "require_citations": true,
+    "citation_style": "[source#chunk_id]",
+    "max_words": 200,
+    "required_sections": [],
+    "abstain_phrase": "I am not sure about that policy; please check with HR."
+  },
+  "guardrails": [
+    "require_citations"
+  ],
+  "citation_style": "[source#chunk_id]",
+  "refusal_policy": "Please check with HR if a policy is unclear.",
+  "key_topics": [
+    "pto",
+    "parental_leave",
+    "expenses"
+  ],
+  "must_refuse_topics": [],
+  "max_tool_steps": 3,
+  "iteration": 1
+}

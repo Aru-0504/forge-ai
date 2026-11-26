@@ -12,11 +12,15 @@ from forgeai.core.schemas import (
     ChatMessage,
     ForgeArtifact,
     ForgeRequest,
+    GroundabilityReport,
     PipelineEvent,
+    RequirementsDoc,
     RunStatus,
     SourceDocument,
+    render_requirements_markdown,
     utc_now_iso,
 )
+from forgeai.core.stages.intake_stage import requirements_to_analysis
 from forgeai.security.sanitize import sanitize_filename
 
 
@@ -117,6 +121,8 @@ class ForgeStore:
             "goal": request.goal,
             "agent_name_hint": request.agent_name_hint,
             "urls": request.urls,
+            "clarifying_answers": request.clarifying_answers,
+            "require_human_approval": request.require_human_approval,
             "chunk_size": request.chunk_size,
             "chunk_overlap": request.chunk_overlap,
             "max_csv_rows": request.max_csv_rows,
@@ -154,6 +160,8 @@ class ForgeStore:
             agent_name_hint=payload.get("agent_name_hint"),
             sources=docs,
             urls=payload.get("urls", []),
+            clarifying_answers=payload.get("clarifying_answers", {}),
+            require_human_approval=payload.get("require_human_approval", False),
             chunk_size=payload.get("chunk_size", 900),
             chunk_overlap=payload.get("chunk_overlap", 150),
             max_csv_rows=payload.get("max_csv_rows", 5000),
@@ -163,6 +171,82 @@ class ForgeStore:
             allow_private_urls=payload.get("allow_private_urls", False),
             allowed_http_hosts=payload.get("allowed_http_hosts", []),
         )
+
+    def save_pending_approval(
+        self,
+        run_id: str,
+        requirements: RequirementsDoc,
+        groundability: GroundabilityReport,
+    ) -> None:
+        """Persist requirements + groundability when Human Checkpoint pauses a run."""
+        target = self.run_dir(run_id)
+        (target / "requirements.json").write_text(
+            requirements.model_dump_json(indent=2) + "\n", encoding="utf-8"
+        )
+        (target / "requirements.md").write_text(
+            render_requirements_markdown(requirements, run_id), encoding="utf-8"
+        )
+        (target / "groundability.json").write_text(
+            groundability.model_dump_json(indent=2) + "\n", encoding="utf-8"
+        )
+        self.update_run_status(
+            run_id,
+            status="awaiting_approval",
+            progress=0.35,
+            domain=requirements.domain,
+            artifact_path=str(target),
+        )
+
+    def load_pending_approval(self, run_id: str) -> dict[str, Any] | None:
+        base = self.artifacts_dir / run_id
+        req_path = base / "requirements.json"
+        if not req_path.exists():
+            return None
+        req = RequirementsDoc.model_validate_json(req_path.read_text(encoding="utf-8"))
+        g_path = base / "groundability.json"
+        ground = (
+            GroundabilityReport.model_validate_json(g_path.read_text(encoding="utf-8"))
+            if g_path.exists()
+            else GroundabilityReport()
+        )
+        return {
+            "requirements": req.model_dump(),
+            "groundability": ground.model_dump(),
+            "requirements_markdown": render_requirements_markdown(req, run_id),
+        }
+
+    def approve_requirements(
+        self,
+        run_id: str,
+        edited: RequirementsDoc | None = None,
+    ) -> RequirementsDoc | None:
+        """Persist approved/edited RequirementsDoc into checkpoint so worker resumes at evalgen."""
+        base = self.artifacts_dir / run_id
+        cp_path = base / "checkpoints" / "intake.json"
+        req_path = base / "requirements.json"
+        if not cp_path.exists():
+            return None
+        cp = json.loads(cp_path.read_text(encoding="utf-8"))
+        if edited is not None:
+            approved = edited.model_copy(update={"approved_by_human": True})
+        elif req_path.exists():
+            approved = RequirementsDoc.model_validate_json(
+                req_path.read_text(encoding="utf-8")
+            ).model_copy(update={"approved_by_human": True})
+        else:
+            approved = RequirementsDoc.model_validate(cp["requirements"]).model_copy(
+                update={"approved_by_human": True}
+            )
+
+        cp["requirements"] = approved.model_dump()
+        cp["analysis"] = requirements_to_analysis(approved).model_dump()
+        cp_path.write_text(json.dumps(cp, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        req_path.write_text(approved.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        (base / "requirements.md").write_text(
+            render_requirements_markdown(approved, run_id), encoding="utf-8"
+        )
+        self.update_run_status(run_id, status="queued", error="", domain=approved.domain)
+        return approved
 
     def create_run(
         self,

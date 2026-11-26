@@ -1,9 +1,10 @@
 {
   "domain": "Human Resources & Workplace Policy",
-  "summary": "Intake complete for brief: Answer employee HR policy questions with exact handbook citations and compute meal/travel per-diem totals.",
+  "summary": "Answer grounded questions and deterministic calculations for: Answer employee HR policy questions with exact handbook citations and compute meal/travel per-diem totals.",
   "target_users": [
-    "Internal operators",
-    "Domain specialists"
+    "Full-time employees",
+    "people managers",
+    "and HR Operations"
   ],
   "key_topics": [
     "leave_entitlement",

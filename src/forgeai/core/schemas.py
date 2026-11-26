@@ -1,4 +1,4 @@
-"""Core domain schemas for the ForgeAI 7-stage iterative agent-factory pipeline and runtime."""
+"""Core domain schemas for the ForgeAI 7-stage iterative agent-factory pipeline, runtime, and regression."""
 
 from __future__ import annotations
 
@@ -9,7 +9,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-RunStatus = Literal["queued", "running", "done", "failed", "budget_exhausted"]
+RunStatus = Literal[
+    "queued",
+    "running",
+    "awaiting_approval",
+    "done",
+    "failed",
+    "budget_exhausted",
+]
 
 
 def utc_now_iso() -> str:
@@ -59,8 +66,48 @@ class KnowledgeIndexData(BaseModel):
     ingest_warnings: list[str] = Field(default_factory=list)
 
 
+class ClarifyingQuestion(BaseModel):
+    """Single clarifying question asked by the Intake Interviewer (at most 5 per run)."""
+
+    id: str
+    question: str
+    rationale: str = ""
+    default_answer: str = ""
+
+
+class ClarifyingQuestionsList(BaseModel):
+    """Container for up to 5 Intake Interviewer clarifying questions."""
+
+    questions: list[ClarifyingQuestion] = Field(default_factory=list, max_length=5)
+
+
+class ClarifyingQA(BaseModel):
+    """Recorded question/answer pair from interactive or unattended intake."""
+
+    id: str
+    question: str
+    answer: str
+    answered_by: Literal["human", "default_unattended"] = "default_unattended"
+
+
+class RequirementsDoc(BaseModel):
+    """Structured requirements document produced by Core #1 (Intake Interviewer)."""
+
+    domain: str
+    scope: str
+    audience: str
+    tone: str = "Clear, precise, and citation-first"
+    must_answer_topics: list[str] = Field(default_factory=list)
+    must_refuse_topics: list[str] = Field(default_factory=list)
+    clarifying_qa: list[ClarifyingQA] = Field(default_factory=list)
+    recommended_tools: list[str] = Field(default_factory=list)
+    risk_controls: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    approved_by_human: bool = False
+
+
 class DomainAnalysis(BaseModel):
-    """Structured brief & corpus analysis produced by the `intake` stage."""
+    """Structured brief & corpus summary (kept in sync with RequirementsDoc)."""
 
     domain: str
     summary: str
@@ -72,19 +119,42 @@ class DomainAnalysis(BaseModel):
 
 
 class GroundabilityReport(BaseModel):
-    """Corpus coverage and groundability check produced by the `groundability` stage."""
+    """Corpus coverage and groundability check produced by Core #2 (`groundability`)."""
 
     is_groundable: bool = True
     coverage_score: float = Field(default=0.8, ge=0.0, le=1.0)
     covered_topics: list[str] = Field(default_factory=list)
     missing_gaps: list[str] = Field(default_factory=list)
+    unsupported_requests: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     detected_scripts: list[str] = Field(default_factory=lambda: ["latin"])
     recommendation: str = "Proceed to generation."
 
 
+class RetrievalConfig(BaseModel):
+    """Declarative chunking and retrieval parameters attached to an AgentSpec (Core #3)."""
+
+    chunk_size: int = Field(default=900, ge=100, le=8000)
+    chunk_overlap: int = Field(default=150, ge=0, le=2000)
+    top_k: int = Field(default=4, ge=1, le=15)
+    bm25_weight: float = Field(default=0.7, ge=0.0, le=1.0)
+    cosine_weight: float = Field(default=0.3, ge=0.0, le=1.0)
+    min_score_threshold: float = Field(default=0.05, ge=0.0, le=5.0)
+
+
+class OutputContract(BaseModel):
+    """Declarative output contract enforced by runtime and Judge (Core #3)."""
+
+    format: Literal["markdown", "plain", "json"] = "markdown"
+    require_citations: bool = True
+    citation_style: str = "[source#chunk_id]"
+    max_words: int = Field(default=350, ge=30, le=2000)
+    required_sections: list[str] = Field(default_factory=list)
+    abstain_phrase: str = "I cannot verify this from the provided documents."
+
+
 class AgentSpec(BaseModel):
-    """Compiled agent specification synthesized by the `generator` stage."""
+    """Complete declarative agent definition synthesized by Core #3 (`generator`)."""
 
     name: str
     slug: str
@@ -93,16 +163,19 @@ class AgentSpec(BaseModel):
     persona: str
     system_prompt: str
     enabled_tools: list[str] = Field(default_factory=lambda: ["kb_search", "calc", "policy_cite"])
+    retrieval_config: RetrievalConfig = Field(default_factory=RetrievalConfig)
+    output_contract: OutputContract = Field(default_factory=OutputContract)
     guardrails: list[str] = Field(default_factory=list)
     citation_style: str = "[source#chunk_id]"
     refusal_policy: str = "State clearly when the knowledge base lacks supporting evidence."
     key_topics: list[str] = Field(default_factory=list)
+    must_refuse_topics: list[str] = Field(default_factory=list)
     max_tool_steps: int = Field(default=4, ge=1, le=10)
     iteration: int = Field(default=1, ge=1)
 
 
 class EvalCase(BaseModel):
-    """Single golden or security test case produced by `evalgen`."""
+    """Single golden, refusal, or security test case produced by `evalgen`."""
 
     id: str
     category: str = "grounded_lookup"
@@ -217,6 +290,75 @@ class Scorecard(BaseModel):
     budget_exhausted_reason: str = ""
 
 
+class RegressionCaseDiff(BaseModel):
+    """Comparison of one historical EvalCase before and after document changes."""
+
+    case_id: str
+    category: str
+    question: str
+    status: Literal["regressed", "fixed", "still_passing", "still_failing"]
+    old_passed: bool
+    new_passed: bool
+    old_score: float
+    new_score: float
+    old_notes: str = ""
+    new_notes: str = ""
+
+
+class RegressionReport(BaseModel):
+    """Full diff report produced by Regression Mode when documents change."""
+
+    baseline_run_id: str
+    regenerated_run_id: str
+    created_at: str = Field(default_factory=utc_now_iso)
+    total_cases: int
+    regressed_count: int
+    fixed_count: int
+    still_passing_count: int
+    still_failing_count: int
+    old_pass_rate: float
+    new_pass_rate: float
+    has_regressions: bool
+    diffs: list[RegressionCaseDiff] = Field(default_factory=list)
+    summary: str = ""
+    report_markdown: str = ""
+
+
+class BaselineComparisonCase(BaseModel):
+    """Per-case head-to-head comparison between Factory agent and hand-written Human baseline."""
+
+    case_id: str
+    category: str
+    question: str
+    factory_passed: bool
+    baseline_passed: bool
+    factory_score: float
+    baseline_score: float
+    winner: Literal["factory", "baseline", "tie"]
+    factory_notes: str = ""
+    baseline_notes: str = ""
+
+
+class BaselineComparisonReport(BaseModel):
+    """Head-to-head scorecard comparing Factory-forged vs Human-baseline agent."""
+
+    factory_agent_name: str
+    baseline_agent_name: str
+    created_at: str = Field(default_factory=utc_now_iso)
+    total_cases: int
+    factory_pass_rate: float
+    baseline_pass_rate: float
+    factory_avg_score: float
+    baseline_avg_score: float
+    factory_wins: int
+    baseline_wins: int
+    ties: int
+    cases: list[BaselineComparisonCase] = Field(default_factory=list)
+    where_factory_wins: list[str] = Field(default_factory=list)
+    where_baseline_wins: list[str] = Field(default_factory=list)
+    report_markdown: str = ""
+
+
 class RuntimeAction(BaseModel):
     """Structured step returned by the LLM inside the ForgedAgentRuntime loop."""
 
@@ -260,6 +402,7 @@ class PipelineEvent(BaseModel):
         "stage_progress",
         "stage_degraded",
         "stage_completed",
+        "awaiting_approval",
         "budget_exhausted",
         "run_completed",
         "run_failed",
@@ -277,6 +420,8 @@ class ForgeRequest(BaseModel):
     agent_name_hint: str | None = None
     sources: list[SourceDocument] = Field(default_factory=list)
     urls: list[str] = Field(default_factory=list)
+    clarifying_answers: dict[str, str] = Field(default_factory=dict)
+    require_human_approval: bool = False
     chunk_size: int = Field(default=900, ge=100, le=8000)
     chunk_overlap: int = Field(default=150, ge=0, le=2000)
     max_csv_rows: int = Field(default=5000, ge=10, le=100_000)
@@ -287,10 +432,44 @@ class ForgeRequest(BaseModel):
     allowed_http_hosts: list[str] = Field(default_factory=list)
 
 
+def render_requirements_markdown(req: RequirementsDoc, run_id: str) -> str:
+    """Render a clean human-readable requirements.md for Core #1 & Human Checkpoint review."""
+    lines = [
+        f"# Structured Requirements Document ({run_id})",
+        "",
+        f"- **Domain**: {req.domain}",
+        f"- **Scope**: {req.scope}",
+        f"- **Audience**: {req.audience}",
+        f"- **Tone**: {req.tone}",
+        f"- **Approved by Human**: {'Yes' if req.approved_by_human else 'No (Unattended / Pending)'}",
+        f"- **Recommended Tools**: `{', '.join(req.recommended_tools)}`",
+        "",
+        "## Must-Answer Topics",
+        "",
+        *[f"- {t}" for t in req.must_answer_topics],
+        "",
+        "## Must-Refuse Topics (Out-of-Scope & Groundability Gaps)",
+        "",
+        *[f"- {t}" for t in req.must_refuse_topics],
+        "",
+        "## Clarifying Interview Q&A (≤ 5 Questions)",
+        "",
+    ]
+    for qa in req.clarifying_qa:
+        lines.append(f"- **{qa.id}**: {qa.question}")
+        lines.append(f"  - *Answer ({qa.answered_by})*: {qa.answer}")
+    if req.risk_controls:
+        lines.extend(["", "## Risk Controls", "", *[f"- {c}" for c in req.risk_controls]])
+    if req.assumptions:
+        lines.extend(["", "## Assumptions", "", *[f"- {a}" for a in req.assumptions]])
+    lines.append("")
+    return "\n".join(lines)
+
+
 class ForgeArtifact(BaseModel):
     """Complete, self-contained, reproducible bundle for a forged agent."""
 
-    schema_version: str = "2.0.0"
+    schema_version: str = "2.1.0"
     run_id: str
     status: RunStatus = "done"
     created_at: str = Field(default_factory=utc_now_iso)
@@ -301,10 +480,18 @@ class ForgeArtifact(BaseModel):
     seed: int | None = 42
     config_hash: str = ""
     prompt_versions: dict[str, str] = Field(default_factory=dict)
+    requirements: RequirementsDoc = Field(
+        default_factory=lambda: RequirementsDoc(
+            domain="General",
+            scope="Answer questions grounded in provided documents.",
+            audience="Operators",
+        )
+    )
     analysis: DomainAnalysis
     groundability: GroundabilityReport = Field(default_factory=GroundabilityReport)
     agent_spec: AgentSpec
     knowledge_index: KnowledgeIndexData
+    eval_cases: list[EvalCase] = Field(default_factory=list)
     eval_report: EvalReport
     scorecard: Scorecard
     degraded_stages: list[DegradedStageRecord] = Field(default_factory=list)
@@ -315,6 +502,12 @@ class ForgeArtifact(BaseModel):
     def save_to_dir(self, target_dir: Path) -> Path:
         """Persist reproducible JSON & Markdown artifacts to `target_dir` (manifest written last atomically)."""
         target_dir.mkdir(parents=True, exist_ok=True)
+        (target_dir / "requirements.json").write_text(
+            self.requirements.model_dump_json(indent=2) + "\n", encoding="utf-8"
+        )
+        (target_dir / "requirements.md").write_text(
+            render_requirements_markdown(self.requirements, self.run_id), encoding="utf-8"
+        )
         (target_dir / "analysis.json").write_text(
             self.analysis.model_dump_json(indent=2) + "\n", encoding="utf-8"
         )
@@ -326,6 +519,11 @@ class ForgeArtifact(BaseModel):
         )
         (target_dir / "knowledge_index.json").write_text(
             self.knowledge_index.model_dump_json(indent=2) + "\n", encoding="utf-8"
+        )
+        (target_dir / "eval_cases.json").write_text(
+            json.dumps([c.model_dump() for c in self.eval_cases], indent=2, ensure_ascii=False)
+            + "\n",
+            encoding="utf-8",
         )
         (target_dir / "eval_report.json").write_text(
             self.eval_report.model_dump_json(indent=2) + "\n", encoding="utf-8"
@@ -345,7 +543,13 @@ class ForgeArtifact(BaseModel):
             f"- **Run ID**: `{self.run_id}`\n"
             f"- **Domain**: {self.agent_spec.domain}\n"
             f"- **Model**: `{self.provider}:{self.model}` (`{self.model_version}`)\n"
-            f"- **Enabled Tools**: {', '.join(self.agent_spec.enabled_tools)}\n\n"
+            f"- **Enabled Tools**: {', '.join(self.agent_spec.enabled_tools)}\n"
+            f"- **Retrieval Config**: `top_k={self.agent_spec.retrieval_config.top_k}`, "
+            f"`bm25={self.agent_spec.retrieval_config.bm25_weight}`, "
+            f"`cosine={self.agent_spec.retrieval_config.cosine_weight}`\n"
+            f"- **Output Contract**: `format={self.agent_spec.output_contract.format}`, "
+            f"`require_citations={self.agent_spec.output_contract.require_citations}`, "
+            f"`max_words={self.agent_spec.output_contract.max_words}`\n\n"
             f"## System Prompt\n\n{self.agent_spec.system_prompt}\n",
             encoding="utf-8",
         )
@@ -373,10 +577,13 @@ class ForgeArtifact(BaseModel):
             "degraded_stages": [d.stage for d in self.degraded_stages],
             "files": [
                 "manifest.json",
+                "requirements.json",
+                "requirements.md",
                 "analysis.json",
                 "groundability.json",
                 "agent_spec.json",
                 "knowledge_index.json",
+                "eval_cases.json",
                 "eval_report.json",
                 "scorecard.json",
                 "report.md",
@@ -398,6 +605,20 @@ class ForgeArtifact(BaseModel):
         analysis = DomainAnalysis.model_validate_json(
             (source_dir / "analysis.json").read_text(encoding="utf-8")
         )
+        req_path = source_dir / "requirements.json"
+        if req_path.exists():
+            requirements = RequirementsDoc.model_validate_json(req_path.read_text(encoding="utf-8"))
+        else:
+            requirements = RequirementsDoc(
+                domain=analysis.domain,
+                scope=analysis.summary,
+                audience=", ".join(analysis.target_users) or "Operators",
+                must_answer_topics=analysis.key_topics,
+                recommended_tools=analysis.recommended_tools,
+                risk_controls=analysis.risk_controls,
+                assumptions=analysis.assumptions,
+            )
+
         ground_path = source_dir / "groundability.json"
         groundability = (
             GroundabilityReport.model_validate_json(ground_path.read_text(encoding="utf-8"))
@@ -409,6 +630,12 @@ class ForgeArtifact(BaseModel):
         )
         knowledge_index = KnowledgeIndexData.model_validate_json(
             (source_dir / "knowledge_index.json").read_text(encoding="utf-8")
+        )
+        eval_cases_path = source_dir / "eval_cases.json"
+        eval_cases = (
+            [EvalCase.model_validate(c) for c in json.loads(eval_cases_path.read_text(encoding="utf-8"))]
+            if eval_cases_path.exists()
+            else []
         )
         eval_report = EvalReport.model_validate_json(
             (source_dir / "eval_report.json").read_text(encoding="utf-8")
@@ -436,7 +663,7 @@ class ForgeArtifact(BaseModel):
         report_md = report_path.read_text(encoding="utf-8") if report_path.exists() else ""
 
         return cls(
-            schema_version=manifest.get("schema_version", "2.0.0"),
+            schema_version=manifest.get("schema_version", "2.1.0"),
             run_id=manifest["run_id"],
             status=manifest.get("status", scorecard.status),
             created_at=manifest.get("created_at", utc_now_iso()),
@@ -447,10 +674,12 @@ class ForgeArtifact(BaseModel):
             seed=manifest.get("seed", 42),
             config_hash=manifest.get("config_hash", ""),
             prompt_versions=manifest.get("prompt_versions", {}),
+            requirements=requirements,
             analysis=analysis,
             groundability=groundability,
             agent_spec=agent_spec,
             knowledge_index=knowledge_index,
+            eval_cases=eval_cases,
             eval_report=eval_report,
             scorecard=scorecard,
             degraded_stages=scorecard.degraded_stages,

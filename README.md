@@ -23,15 +23,17 @@ make docker-ollama
 ## Architecture & Service Boundaries
 
 - **Pure Core Library (`src/forgeai/core/`)** — zero HTTP or UI imports. Implements the 7 stages (`intake`, `groundability`, `evalgen`, `generator`, `judge`, `critic`, `report`), multi-format ingestion, hybrid BM25 + TF-IDF retrieval, deterministic tools, and `ForgedAgentRuntime`.
-- **FastAPI Service (`src/forgeai/service/`)** — wraps the core behind resumable SQLite-backed background jobs (`queued`, `running`, `done`, `failed`, `budget_exhausted`):
-  - `POST /runs` — submit brief + uploaded docs (multipart or JSON)
-  - `GET /runs/{id}` — run status, scorecard, report, and artifacts
+- **FastAPI Service (`src/forgeai/service/`)** — wraps the core behind resumable SQLite-backed background jobs (`queued`, `running`, `awaiting_approval`, `done`, `failed`, `budget_exhausted`):
+  - `POST /runs` — submit brief + uploaded docs (multipart or JSON; supports `require_human_approval=true`)
+  - `GET /runs/{id}` — run status, pending approval requirements, scorecard, report, and artifacts
   - `GET /runs/{id}/events` — live progress over Server-Sent Events (SSE) with SQLite replay
+  - `POST /runs/{id}/approve` — Human Checkpoint: approve or edit the structured requirements document before generation proceeds
   - `POST /runs/{id}/resume` — resume an interrupted or failed run from saved stage checkpoints
+  - `POST /runs/{id}/regress` — Regression Mode: regenerate agent on updated docs and re-run the old eval set to report what broke
   - `POST /agents/{id}/chat` — chat with a forged agent (SQLite session history)
   - `GET /healthz` — liveness & model/config metadata (`GET /metrics` for JSON/Prometheus counters)
-- **Thin UI (`ui/app.py`)** — Streamlit client for both the Factory (`POST /runs` + live SSE) and Chat Runner (`POST /agents/{id}/chat`).
-- **CLI (`src/forgeai/cli.py`)** — `forgeai forge`, `forgeai chat`, `forgeai inspect`, `forgeai serve`, `forgeai worker` calling the exact same core package.
+- **Thin UI (`ui/app.py`)** — 4-workspace Streamlit Control Room (Agent Factory + Human Approval Editor, Scorecard Inspector, Regression & Baseline Diff, Chat Runner).
+- **CLI (`src/forgeai/cli.py`)** — `forgeai forge` (supports `--interactive` ≤5 clarifying Q&A + requirements approval), `forgeai regress`, `forgeai compare`, `forgeai chat`, `forgeai inspect`, `forgeai serve`, `forgeai worker`.
 
 ## Model Backends & Hosting Tradeoff
 
@@ -60,8 +62,9 @@ One `BaseLLMClient` interface supports two real backends (plus an offline `stub`
 
 Both full demos were executed through the real FastAPI service (`make demo` / [demos/run_demos.py](demos/run_demos.py)) with complete artifacts (`manifest.json`, `scorecard.json`, `report.md`, `eval_report.json`, `agent_spec.json`, `knowledge_index.json`, `run_logs.jsonl`, `sse_events.txt`, `sample_transcript.md`) committed:
 
-- [`demos/run1_hr_policy/`](demos/run1_hr_policy/) — **HR Policy Advisor**
+- [`demos/run1_hr_policy/`](demos/run1_hr_policy/) — **HR Policy Advisor** (with `requirements.md`, `scorecard.json`, `report.md`, `run_logs.jsonl`)
 - [`demos/run2_ship_spares/`](demos/run2_ship_spares/) — **Ship Spares Operations Specialist**
+- [`demos/baseline_comparison/`](demos/baseline_comparison/comparison_report.md) — **Factory vs. Human Baseline** head-to-head evaluation report (`100%` factory vs `83%` hand-written baseline, with candid wins/losses)
 
 ## Documentation
 

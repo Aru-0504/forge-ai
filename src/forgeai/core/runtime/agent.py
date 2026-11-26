@@ -1,4 +1,4 @@
-"""ForgedAgentRuntime: executes a packaged ForgeArtifact with tools, quoted-data hygiene, and citations."""
+"""ForgedAgentRuntime: executes AgentSpec (retrieval_config, output_contract, tools, guardrails)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 import re
 import time
 
-from forgeai.core.ingest.index import HybridKnowledgeIndex
+from forgeai.core.ingest.index import HybridKnowledgeIndex, tokenize
 from forgeai.core.prompts.templates import build_runtime_system_prompt, quote_document_data
 from forgeai.core.schemas import (
     AgentSpec,
@@ -27,7 +27,7 @@ _INLINE_CITE_RE = re.compile(r"\[([A-Za-z0-9._-]+#[A-Za-z0-9_-]+)\]")
 
 
 class ForgedAgentRuntime:
-    """Runs a forged agent (AgentSpec + KnowledgeIndex) over an LLM + ToolRegistry."""
+    """Runs a forged agent (AgentSpec + KnowledgeIndex) honoring retrieval_config and output_contract."""
 
     def __init__(
         self,
@@ -43,6 +43,7 @@ class ForgedAgentRuntime:
         self.index = HybridKnowledgeIndex(knowledge_index)
         self.registry = build_default_registry(
             self.index,
+            retrieval_config=spec.retrieval_config,
             allowed_http_hosts=self.allowed_http_hosts,
         )
         self.llm = llm
@@ -74,6 +75,22 @@ class ForgedAgentRuntime:
             allowed_http_hosts=self.allowed_http_hosts,
         )
 
+    def _matches_must_refuse_topic(self, clean_q: str) -> str | None:
+        """Detect explicit must-refuse / groundability-gap topics before hallucinating an answer."""
+        if not self.spec.must_refuse_topics:
+            return None
+        q_tokens = set(tokenize(clean_q))
+        if not q_tokens:
+            return None
+        for topic in self.spec.must_refuse_topics:
+            t_tokens = set(tokenize(topic))
+            if len(t_tokens) >= 2 and len(q_tokens & t_tokens) >= max(2, (len(t_tokens) + 1) // 2):
+                # Confirm the corpus does not actually strongly support this query
+                hits = self.index.search(clean_q, top_k=1, min_score=1.5)
+                if not hits:
+                    return topic
+        return None
+
     def answer(
         self,
         question: str,
@@ -81,7 +98,7 @@ class ForgedAgentRuntime:
         history: list[ChatMessage] | None = None,
         metrics: MetricsTracker | None = None,
     ) -> ChatResponse:
-        """Answer a user question using guardrails, quoted-data tool results, and citations."""
+        """Answer a user question using guardrails, retrieval_config, output_contract, and citations."""
         t0 = time.monotonic()
         clean_q = sanitize_text(question, max_length=4000)
         if not clean_q:
@@ -90,7 +107,7 @@ class ForgedAgentRuntime:
                 latency_ms=round((time.monotonic() - t0) * 1000.0, 2),
             )
 
-        # Direct prompt-injection guard on user input
+        # 1. Direct prompt-injection guard on user input
         scan = detect_prompt_injection(clean_q)
         if scan.flagged:
             return ChatResponse(
@@ -99,6 +116,18 @@ class ForgedAgentRuntime:
                     f"system prompts (security policy triggered: {', '.join(scan.matches)})."
                 ),
                 blocked_injection=True,
+                latency_ms=round((time.monotonic() - t0) * 1000.0, 2),
+            )
+
+        # 2. Must-refuse / groundability-gap guard (prevents hallucinating unsupported topics)
+        refused_topic = self._matches_must_refuse_topic(clean_q)
+        if refused_topic:
+            abstain = self.spec.output_contract.abstain_phrase or self.spec.refusal_policy
+            return ChatResponse(
+                answer=(
+                    f"{abstain} This topic ('{refused_topic}') is outside the grounded scope "
+                    "of the ingested documents."
+                ),
                 latency_ms=round((time.monotonic() - t0) * 1000.0, 2),
             )
 
@@ -163,15 +192,21 @@ class ForgedAgentRuntime:
                 )
                 continue
 
-            final_answer = action.answer.strip() or self.spec.refusal_policy
+            final_answer = action.answer.strip() or self.spec.output_contract.abstain_phrase
             citations = list(dict.fromkeys(action.citations))
             break
         else:
-            final_answer = self.spec.refusal_policy
+            final_answer = self.spec.output_contract.abstain_phrase
 
         for found in _INLINE_CITE_RE.findall(final_answer):
             if found not in citations:
                 citations.append(found)
+
+        # Enforce max_words from OutputContract cleanly
+        max_words = self.spec.output_contract.max_words
+        words = final_answer.split()
+        if len(words) > max_words:
+            final_answer = " ".join(words[:max_words]) + "..."
 
         usage_dict: dict[str, int] = {}
         if metrics is not None:

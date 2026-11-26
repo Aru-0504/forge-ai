@@ -1,4 +1,4 @@
-"""Base stage interface, StageContext, checkpoints, and graceful degradation hooks."""
+"""Base stage interface, StageContext, checkpoints, interactive callbacks, and graceful degradation."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from typing import Any
 
 from forgeai.core.schemas import (
     AgentSpec,
+    ClarifyingQuestion,
     CriticFeedback,
     DegradedStageRecord,
     DomainAnalysis,
@@ -22,6 +23,7 @@ from forgeai.core.schemas import (
     KnowledgeIndexData,
     LoopRecord,
     PipelineEvent,
+    RequirementsDoc,
     RunStatus,
     Scorecard,
 )
@@ -29,6 +31,8 @@ from forgeai.llm.base import BaseLLMClient
 from forgeai.observability.metrics import MetricsTracker
 
 EventCallback = Callable[[PipelineEvent], Any]
+InterviewCallback = Callable[[list[ClarifyingQuestion]], dict[str, str]]
+ApprovalCallback = Callable[[RequirementsDoc, GroundabilityReport], RequirementsDoc]
 
 
 @dataclass
@@ -40,6 +44,8 @@ class StageContext:
     llm: BaseLLMClient
     metrics: MetricsTracker
     emit_event: EventCallback
+    interview_callback: InterviewCallback | None = None
+    approval_callback: ApprovalCallback | None = None
     config_hash: str = ""
     prompt_versions: dict[str, str] = field(default_factory=dict)
     max_upload_bytes: int = 10 * 1024 * 1024
@@ -49,6 +55,7 @@ class StageContext:
 
     # Stage outputs
     knowledge_index: KnowledgeIndexData | None = None
+    requirements: RequirementsDoc | None = None
     analysis: DomainAnalysis | None = None
     groundability: GroundabilityReport | None = None
     eval_cases: list[EvalCase] = field(default_factory=list)

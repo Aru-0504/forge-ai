@@ -89,6 +89,7 @@ class ForgeAPIClient:
         agent_name_hint: str = "",
         max_loops: int = 3,
         redact_pii: bool = True,
+        require_human_approval: bool = False,
     ) -> tuple[int, dict[str, Any]]:
         files_payload = [("files", (name, data, mime)) for name, data, mime in files]
         data = {
@@ -96,8 +97,35 @@ class ForgeAPIClient:
             "agent_name_hint": agent_name_hint.strip(),
             "max_loops": str(max_loops),
             "redact_pii": str(redact_pii).lower(),
+            "require_human_approval": str(require_human_approval).lower(),
         }
         resp = self._request("POST", "/runs", data=data, files=files_payload, timeout=30.0)
+        try:
+            body = resp.json()
+        except Exception:
+            body = {"detail": resp.text}
+        return resp.status_code, body
+
+    def approve_run(
+        self,
+        run_id: str,
+        requirements: dict[str, Any] | None = None,
+    ) -> tuple[int, dict[str, Any]]:
+        payload = {"requirements": requirements} if requirements is not None else {}
+        resp = self._request("POST", f"/runs/{run_id}/approve", json=payload, timeout=15.0)
+        try:
+            body = resp.json()
+        except Exception:
+            body = {"detail": resp.text}
+        return resp.status_code, body
+
+    def regress_run(
+        self,
+        run_id: str,
+        files: list[tuple[str, bytes, str]],
+    ) -> tuple[int, dict[str, Any]]:
+        files_payload = [("files", (name, data, mime)) for name, data, mime in files]
+        resp = self._request("POST", f"/runs/{run_id}/regress", files=files_payload, timeout=120.0)
         try:
             body = resp.json()
         except Exception:
@@ -177,6 +205,7 @@ def load_demo_as_run_detail(demo_dir: Path) -> dict[str, Any]:
                 "config_hash": art.config_hash,
                 "prompt_versions": art.prompt_versions,
             },
+            "requirements": art.requirements.model_dump(),
             "analysis": art.analysis.model_dump(),
             "groundability": art.groundability.model_dump(),
             "agent_spec": art.agent_spec.model_dump(),
@@ -207,6 +236,14 @@ def build_artifact_zip_bytes(run_id: str, artifacts: dict[str, Any]) -> bytes:
                 f"# {spec.get('name', run_id)}\n\n{spec['system_prompt']}\n",
             )
     return buf.getvalue()
+
+
+def load_baseline_comparison() -> dict[str, Any] | None:
+    """Load the committed Factory vs. Human Baseline comparison report if present."""
+    path = DEMOS_DIR / "baseline_comparison" / "comparison_report.json"
+    if not path.exists():
+        return None
+    return dict(json.loads(path.read_text(encoding="utf-8")))
 
 
 def suggest_sample_prompts(domain: str, enabled_tools: list[str]) -> list[str]:

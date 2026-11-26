@@ -1,4 +1,4 @@
-"""Pure-Python BM25 + TF-IDF cosine hybrid search index over KnowledgeIndexData."""
+"""Pure-Python BM25 + TF-IDF cosine hybrid search index honoring AgentSpec.retrieval_config."""
 
 from __future__ import annotations
 
@@ -63,15 +63,23 @@ class HybridKnowledgeIndex:
         n_docs = len(chunks)
         self._avgdl = max(1.0, total_len / n_docs)
         for term, df in self._df.items():
-            # Smooth BM25/TF-IDF IDF
             self._idf[term] = math.log((n_docs - df + 0.5) / (df + 0.5) + 1.0)
 
         for tf in self._doc_tf:
             norm_sq = sum((count * self._idf.get(t, 0.0)) ** 2 for t, count in tf.items())
             self._doc_norms.append(math.sqrt(norm_sq) or 1.0)
 
-    def search(self, query: str, *, top_k: int = 5, source_filter: str | None = None) -> list[SearchHit]:
-        """Rank chunks by weighted BM25 (0.7) + TF-IDF cosine (0.3) score."""
+    def search(
+        self,
+        query: str,
+        *,
+        top_k: int = 5,
+        source_filter: str | None = None,
+        bm25_weight: float = 0.7,
+        cosine_weight: float = 0.3,
+        min_score: float = 0.0,
+    ) -> list[SearchHit]:
+        """Rank chunks by configurable weighted BM25 + TF-IDF cosine score."""
         if not self.data.chunks:
             return []
         q_tokens = tokenize(query)
@@ -100,8 +108,8 @@ class HybridKnowledgeIndex:
                 dot += (freq * idf) * (q_count * idf)
 
             cosine = dot / (self._doc_norms[idx] * q_norm) if dot > 0 else 0.0
-            score = 0.7 * bm25 + 0.3 * cosine
-            if score > 0:
+            score = bm25_weight * bm25 + cosine_weight * cosine
+            if score > 0 and score >= min_score:
                 hits.append(SearchHit(chunk=chunk, score=round(score, 4)))
 
         hits.sort(key=lambda h: h.score, reverse=True)

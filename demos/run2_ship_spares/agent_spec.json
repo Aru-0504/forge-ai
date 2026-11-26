@@ -11,6 +11,22 @@
     "table_lookup",
     "calc"
   ],
+  "retrieval_config": {
+    "chunk_size": 900,
+    "chunk_overlap": 150,
+    "top_k": 4,
+    "bm25_weight": 0.7,
+    "cosine_weight": 0.3,
+    "min_score_threshold": 0.05
+  },
+  "output_contract": {
+    "format": "markdown",
+    "require_citations": true,
+    "citation_style": "[source#chunk_id]",
+    "max_words": 300,
+    "required_sections": [],
+    "abstain_phrase": "I cannot verify that part or procedure in the ingested ship spares catalog and SOPs. Please confirm with the Fleet Technical Superintendent."
+  },
   "guardrails": [
     "require_citations",
     "block_direct_prompt_injection",
@@ -25,6 +41,13 @@
     "inventory_stock",
     "lead_time_calc",
     "procurement_sop"
+  ],
+  "must_refuse_topics": [
+    "Unverified non-OEM part substitutions without Class dispensation",
+    "Live vendor delivery guarantees not in the catalog",
+    "Live vendor delivery guarantees not present in the catalog",
+    "part_lookup",
+    "lead_time_calc"
   ],
   "max_tool_steps": 4,
   "iteration": 1

@@ -10,6 +10,22 @@
     "policy_cite",
     "calc"
   ],
+  "retrieval_config": {
+    "chunk_size": 900,
+    "chunk_overlap": 150,
+    "top_k": 4,
+    "bm25_weight": 0.7,
+    "cosine_weight": 0.3,
+    "min_score_threshold": 0.05
+  },
+  "output_contract": {
+    "format": "markdown",
+    "require_citations": true,
+    "citation_style": "[source#chunk_id]",
+    "max_words": 300,
+    "required_sections": [],
+    "abstain_phrase": "I could not find a policy clause covering this request in the ingested HR handbook. Please contact HR Operations for an official ruling."
+  },
   "guardrails": [
     "require_citations",
     "block_direct_prompt_injection",
@@ -24,6 +40,12 @@
     "remote_work",
     "expense_reimbursement",
     "escalation"
+  ],
+  "must_refuse_topics": [
+    "Individual compensation negotiations or personal legal advice",
+    "Policy exceptions not written in the handbook",
+    "Individual compensation/salary negotiations or personal legal advice",
+    "Exceptions not written in the ingested HR handbook"
   ],
   "max_tool_steps": 4,
   "iteration": 1

@@ -1,4 +1,4 @@
-"""Run both committed demos through the real FastAPI service (POST /runs -> worker -> SSE -> chat)."""
+"""Run both committed demos through the real FastAPI service + Factory vs. Human Baseline comparison."""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from forgeai.config import Settings
+from forgeai.core.comparison import compare_factory_vs_baseline
+from forgeai.core.schemas import AgentSpec, ForgeArtifact
 from forgeai.llm.base import create_llm_client
 from forgeai.service.api import create_app
 
@@ -46,12 +48,12 @@ DEMO_SPECS = [
 def run_all_demos() -> None:
     tmp_root = REPO_ROOT / ".tmp_demo_service"
     if tmp_root.exists():
-        shutil.rmtree(tmp_root)
+        shutil.rmtree(tmp_root, ignore_errors=True)
 
     settings = Settings(
         llm_provider="stub",
         llm_model="qwen2.5:7b-instruct",
-        llm_model_version="stub-repro-v2",
+        llm_model_version="stub-repro-v2.1",
         llm_seed=42,
         data_dir=tmp_root,
         db_path=tmp_root / "forgeai.db",
@@ -60,7 +62,8 @@ def run_all_demos() -> None:
         run_embedded_worker=True,
         log_format="json",
     )
-    app = create_app(settings=settings, llm=create_llm_client(settings))
+    llm = create_llm_client(settings)
+    app = create_app(settings=settings, llm=llm)
 
     with TestClient(app) as client:
         assert client.get("/healthz").status_code == 200
@@ -85,7 +88,6 @@ def run_all_demos() -> None:
             assert resp.status_code == 202, resp.text
             run_id = resp.json()["run_id"]
 
-            # Wait for background SQLite worker to finish
             detail: dict = {}
             for _ in range(100):
                 detail = client.get(f"/runs/{run_id}").json()
@@ -94,12 +96,10 @@ def run_all_demos() -> None:
                 time.sleep(0.05)
             assert detail["status"] == "done", f"Demo {spec['folder']} failed: {detail}"
 
-            # Verify SSE stream replay works cleanly
             sse = client.get(f"/runs/{run_id}/events")
             assert sse.status_code == 200
             assert "event: run_completed" in sse.text
 
-            # Chat via POST /agents/{id}/chat
             session_id: str | None = None
             transcript_lines = [
                 f"# Sample Chat Transcript (via POST /agents/{run_id}/chat)",
@@ -126,7 +126,6 @@ def run_all_demos() -> None:
                     ]
                 )
 
-            # Copy committed service artifacts into demos/<folder>/ (preserving sources/)
             service_run_dir = Path(detail["artifact_path"])
             for item in service_run_dir.iterdir():
                 if item.name in {"inputs", "checkpoints", "request.json"}:
@@ -144,6 +143,28 @@ def run_all_demos() -> None:
                 f"pass_rate={detail['eval_pass_rate']:.0%}, "
                 f"artifacts committed to {demo_dir}"
             )
+
+    # Bonus #2: Factory vs. Human Baseline comparison on HR Policy demo
+    comp_dir = DEMOS_DIR / "baseline_comparison"
+    hr_artifact = ForgeArtifact.load_from_dir(DEMOS_DIR / "run1_hr_policy")
+    baseline_spec = AgentSpec.model_validate_json(
+        (comp_dir / "human_baseline_hr_spec.json").read_text(encoding="utf-8")
+    )
+    comp_report = compare_factory_vs_baseline(
+        factory_artifact=hr_artifact,
+        baseline_spec=baseline_spec,
+        llm=llm,
+    )
+    (comp_dir / "comparison_report.json").write_text(
+        comp_report.model_dump_json(indent=2) + "\n", encoding="utf-8"
+    )
+    (comp_dir / "comparison_report.md").write_text(
+        comp_report.report_markdown, encoding="utf-8"
+    )
+    print(
+        f"[OK] baseline_comparison -> Factory={comp_report.factory_pass_rate:.0%} "
+        f"vs Human Baseline={comp_report.baseline_pass_rate:.0%}"
+    )
 
     shutil.rmtree(tmp_root, ignore_errors=True)
 

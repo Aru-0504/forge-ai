@@ -1,9 +1,11 @@
 # Ship Spares Operations Specialist
 
-- **Run ID**: `run_c0da116d6cc3`
+- **Run ID**: `run_1b75a79d79ad`
 - **Domain**: Maritime Ship Spares & Parts Operations
-- **Model**: `stub:qwen2.5:7b-instruct` (`stub-repro-v2`)
+- **Model**: `stub:qwen2.5:7b-instruct` (`stub-repro-v2.1`)
 - **Enabled Tools**: kb_search, policy_cite, table_lookup, calc
+- **Retrieval Config**: `top_k=4`, `bm25=0.7`, `cosine=0.3`
+- **Output Contract**: `format=markdown`, `require_citations=True`, `max_words=300`
 
 ## System Prompt
 

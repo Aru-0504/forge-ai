@@ -10,6 +10,10 @@ def render_report_markdown(artifact: ForgeArtifact) -> str:
     """Render a concise, auditable Markdown run report for engineers and reviewers."""
     sc = artifact.scorecard
     spec = artifact.agent_spec
+    req = artifact.requirements
+    rc = spec.retrieval_config
+    oc = spec.output_contract
+
     lines: list[str] = [
         f"# ForgeAI Run Report: {spec.name}",
         "",
@@ -20,7 +24,10 @@ def render_report_markdown(artifact: ForgeArtifact) -> str:
         f"- **Goal**: {artifact.goal}",
         f"- **Model**: `{sc.provider}:{sc.model}` (version `{sc.model_version}`, seed `{sc.seed}`)",
         f"- **Config Hash**: `{sc.config_hash}`",
+        f"- **Human Approved Requirements**: {'Yes' if req.approved_by_human else 'No (Unattended)'}",
         f"- **Tools Enabled**: `{', '.join(spec.enabled_tools)}`",
+        f"- **Retrieval Config**: `chunk_size={rc.chunk_size}`, `overlap={rc.chunk_overlap}`, `top_k={rc.top_k}`, `bm25={rc.bm25_weight}`, `cosine={rc.cosine_weight}`",
+        f"- **Output Contract**: `format={oc.format}`, `require_citations={oc.require_citations}`, `max_words={oc.max_words}`",
         "",
         "## Scorecard Summary",
         "",
@@ -35,6 +42,15 @@ def render_report_markdown(artifact: ForgeArtifact) -> str:
         f"| Total Tokens | {sc.total_tokens} |",
         f"| Total Latency | {sc.total_latency_ms:.1f} ms |",
         f"| Estimated Cost | ${sc.total_cost_usd:.6f} |",
+        "",
+        "## Structured Requirements Summary",
+        "",
+        f"- **Scope**: {req.scope}",
+        f"- **Audience**: {req.audience}",
+        f"- **Tone**: {req.tone}",
+        f"- **Must-Answer Topics**: {', '.join(req.must_answer_topics) or 'none'}",
+        f"- **Must-Refuse Topics**: {', '.join(req.must_refuse_topics) or 'none'}",
+        f"- **Clarifying Interview Questions Recorded**: {len(req.clarifying_qa)}",
         "",
     ]
 
@@ -93,13 +109,7 @@ def render_report_markdown(artifact: ForgeArtifact) -> str:
             f"{sm.get('latency_ms', 0.0):.1f} | {sm.get('errors', 0)} |"
         )
 
-    lines.extend(
-        [
-            "",
-            "## Prompt Versions (Reproducibility)",
-            "",
-        ]
-    )
+    lines.extend(["", "## Prompt Versions (Reproducibility)", ""])
     for pname, pver in sorted(sc.prompt_versions.items()):
         lines.append(f"- `{pname}`: `{pver}`")
 
@@ -130,7 +140,7 @@ class ReportStage(BaseStage):
 
     def run(self, ctx: StageContext) -> None:
         assert ctx.knowledge_index is not None and ctx.analysis is not None
-        assert ctx.groundability is not None
+        assert ctx.requirements is not None and ctx.groundability is not None
 
         chosen_spec = ctx.best_agent_spec or ctx.agent_spec
         chosen_eval = ctx.best_eval_report or ctx.eval_report
@@ -175,10 +185,12 @@ class ReportStage(BaseStage):
             seed=ctx.llm.seed,
             config_hash=ctx.config_hash,
             prompt_versions=ctx.prompt_versions,
+            requirements=ctx.requirements,
             analysis=ctx.analysis,
             groundability=ctx.groundability,
             agent_spec=chosen_spec,
             knowledge_index=ctx.knowledge_index,
+            eval_cases=ctx.eval_cases,
             eval_report=chosen_eval,
             scorecard=scorecard,
             degraded_stages=ctx.degraded_stages,

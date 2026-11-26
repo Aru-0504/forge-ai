@@ -11,8 +11,20 @@ import uvicorn
 
 from forgeai import __version__
 from forgeai.config import Settings, get_settings
+from forgeai.core.comparison import compare_factory_vs_baseline
+from forgeai.core.regression import run_regression
 from forgeai.core.runtime.agent import ForgedAgentRuntime
-from forgeai.core.schemas import ChatMessage, ForgeArtifact, ForgeRequest, SourceDocument
+from forgeai.core.schemas import (
+    AgentSpec,
+    ChatMessage,
+    ClarifyingQuestion,
+    ForgeArtifact,
+    ForgeRequest,
+    GroundabilityReport,
+    RequirementsDoc,
+    SourceDocument,
+    render_requirements_markdown,
+)
 from forgeai.core.stages.pipeline import ForgePipeline
 from forgeai.llm.base import create_llm_client
 from forgeai.observability.logging import configure_logging
@@ -47,6 +59,12 @@ def main() -> None:
 @click.option("--run-id", default=None, help="Optional deterministic run ID.")
 @click.option("--max-loops", default=None, type=int, help="Max improvement loops (1-5).")
 @click.option(
+    "--interactive",
+    is_flag=True,
+    default=False,
+    help="Ask up to 5 clarifying intake questions and pause for requirements approval before generation.",
+)
+@click.option(
     "--provider",
     type=click.Choice(["stub", "ollama", "openai_compat"]),
     default=None,
@@ -60,6 +78,7 @@ def forge_cmd(
     out_dir: Path,
     run_id: str | None,
     max_loops: int | None,
+    interactive: bool,
     provider: str | None,
     model: str | None,
 ) -> None:
@@ -68,18 +87,12 @@ def forge_cmd(
     configure_logging(settings.log_level, "text")
     llm = create_llm_client(settings)
 
-    docs: list[SourceDocument] = []
-    for path in sources:
-        if path.is_dir():
-            for file_path in sorted(p for p in path.rglob("*") if p.is_file()):
-                docs.append(SourceDocument(filename=file_path.name, content=file_path.read_bytes()))
-        else:
-            docs.append(SourceDocument(filename=path.name, content=path.read_bytes()))
-
+    docs = _collect_source_docs(sources)
     req = ForgeRequest(
         goal=goal,
         agent_name_hint=agent_name_hint,
         sources=docs,
+        require_human_approval=interactive,
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
         max_csv_rows=settings.max_csv_rows,
@@ -107,12 +120,40 @@ def forge_cmd(
     def _print_event(evt) -> None:
         click.echo(f"[{evt.progress:5.0%}] ({evt.stage}) {evt.message}")
 
+    def _cli_interview(questions: list[ClarifyingQuestion]) -> dict[str, str]:
+        click.echo("\n--- Intake Interviewer (press Enter to accept default) ---")
+        answers: dict[str, str] = {}
+        for q in questions[:5]:
+            ans = click.prompt(f"[{q.id}] {q.question}", default=q.default_answer)
+            answers[q.id] = ans.strip()
+        return answers
+
+    def _cli_approve(
+        req_doc: RequirementsDoc, ground: GroundabilityReport
+    ) -> RequirementsDoc:
+        click.echo("\n--- Human Checkpoint: Structured Requirements ---")
+        click.echo(render_requirements_markdown(req_doc, run_id or "pending"))
+        if ground.missing_gaps:
+            click.echo(f"Groundability gaps flagged as must-refuse: {ground.missing_gaps}")
+        if click.confirm("Edit scope or tone before generating?", default=False):
+            req_doc.scope = click.prompt("Scope", default=req_doc.scope)
+            req_doc.tone = click.prompt("Tone", default=req_doc.tone)
+            extra_refuse = click.prompt(
+                "Additional must-refuse topic (leave blank for none)", default=""
+            ).strip()
+            if extra_refuse:
+                req_doc.must_refuse_topics.append(extra_refuse)
+        req_doc.approved_by_human = True
+        return req_doc
+
     out_dir.mkdir(parents=True, exist_ok=True)
     try:
         artifact = pipeline.run(
             req,
             run_id=run_id,
             on_event=_print_event,
+            interview_callback=_cli_interview if interactive else None,
+            approval_callback=_cli_approve if interactive else None,
             checkpoint_dir=out_dir / "checkpoints",
             log_file=out_dir / "run_logs.jsonl",
         )
@@ -125,6 +166,113 @@ def forge_cmd(
     click.echo(f"Artifacts written to: {saved}")
 
 
+@main.command("regress")
+@click.option(
+    "--baseline",
+    "baseline_dir",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Path to the previous ForgeArtifact directory whose eval set will be re-run.",
+)
+@click.option(
+    "--source",
+    "sources",
+    multiple=True,
+    required=True,
+    type=click.Path(exists=True, path_type=Path),
+    help="Updated source document(s) or folder.",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Directory to write the regenerated artifact and regression_report.md.",
+)
+@click.option("--provider", type=click.Choice(["stub", "ollama", "openai_compat"]), default=None)
+@click.option("--model", default=None)
+def regress_cmd(
+    baseline_dir: Path,
+    sources: tuple[Path, ...],
+    out_dir: Path,
+    provider: str | None,
+    model: str | None,
+) -> None:
+    """Regression Mode: regenerate agent on updated docs and re-run the old eval set."""
+    settings = _build_settings(provider=provider, model=model)
+    llm = create_llm_client(settings)
+    baseline = ForgeArtifact.load_from_dir(baseline_dir)
+    docs = _collect_source_docs(sources)
+
+    regenerated, report = run_regression(
+        baseline_artifact=baseline,
+        updated_sources=docs,
+        llm=llm,
+        config_hash=settings.config_hash(),
+    )
+    regenerated.save_to_dir(out_dir)
+    (out_dir / "regression_report.json").write_text(
+        report.model_dump_json(indent=2) + "\n", encoding="utf-8"
+    )
+    (out_dir / "regression_report.md").write_text(report.report_markdown, encoding="utf-8")
+    click.echo(report.summary)
+    click.echo(f"Report written to: {out_dir / 'regression_report.md'}")
+
+
+@main.command("compare")
+@click.option(
+    "--artifact",
+    "artifact_dir",
+    required=True,
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="Path to a factory-forged ForgeArtifact directory.",
+)
+@click.option(
+    "--baseline",
+    "baseline_spec_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to a hand-written human baseline AgentSpec JSON file.",
+)
+@click.option(
+    "--out",
+    "out_dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Directory to write comparison_report.json and comparison_report.md.",
+)
+@click.option("--provider", type=click.Choice(["stub", "ollama", "openai_compat"]), default=None)
+@click.option("--model", default=None)
+def compare_cmd(
+    artifact_dir: Path,
+    baseline_spec_path: Path,
+    out_dir: Path,
+    provider: str | None,
+    model: str | None,
+) -> None:
+    """Factory vs. Human Baseline: run identical evals on both agents and report wins/losses."""
+    settings = _build_settings(provider=provider, model=model)
+    llm = create_llm_client(settings)
+    artifact = ForgeArtifact.load_from_dir(artifact_dir)
+    baseline_spec = AgentSpec.model_validate_json(baseline_spec_path.read_text(encoding="utf-8"))
+
+    report = compare_factory_vs_baseline(
+        factory_artifact=artifact,
+        baseline_spec=baseline_spec,
+        llm=llm,
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "comparison_report.json").write_text(
+        report.model_dump_json(indent=2) + "\n", encoding="utf-8"
+    )
+    (out_dir / "comparison_report.md").write_text(report.report_markdown, encoding="utf-8")
+    click.echo(
+        f"Factory: {report.factory_pass_rate:.0%} (avg {report.factory_avg_score:.2f}) vs "
+        f"Human Baseline: {report.baseline_pass_rate:.0%} (avg {report.baseline_avg_score:.2f})"
+    )
+    click.echo(f"Written to: {out_dir / 'comparison_report.md'}")
+
+
 @main.command("chat")
 @click.option(
     "--artifact",
@@ -134,11 +282,7 @@ def forge_cmd(
     help="Path to a packaged ForgeArtifact directory.",
 )
 @click.option("--question", "-q", default=None, help="Single question (non-interactive mode).")
-@click.option(
-    "--provider",
-    type=click.Choice(["stub", "ollama", "openai_compat"]),
-    default=None,
-)
+@click.option("--provider", type=click.Choice(["stub", "ollama", "openai_compat"]), default=None)
 @click.option("--model", default=None)
 def chat_cmd(
     artifact_dir: Path,
@@ -198,6 +342,8 @@ def inspect_cmd(artifact_dir: Path) -> None:
         "seed": artifact.seed,
         "config_hash": artifact.config_hash,
         "enabled_tools": artifact.agent_spec.enabled_tools,
+        "retrieval_config": artifact.agent_spec.retrieval_config.model_dump(),
+        "output_contract": artifact.agent_spec.output_contract.model_dump(),
         "sources": artifact.knowledge_index.sources,
         "chunks": len(artifact.knowledge_index.chunks),
         "tables": len(artifact.knowledge_index.tables),
@@ -229,6 +375,17 @@ def serve_cmd(host: str | None, port: int | None, reload_app: bool) -> None:
 def worker_cmd() -> None:
     """Run a standalone ForgeAI background job worker polling the shared SQLite queue."""
     asyncio.run(run_standalone_worker())
+
+
+def _collect_source_docs(sources: tuple[Path, ...]) -> list[SourceDocument]:
+    docs: list[SourceDocument] = []
+    for path in sources:
+        if path.is_dir():
+            for file_path in sorted(p for p in path.rglob("*") if p.is_file()):
+                docs.append(SourceDocument(filename=file_path.name, content=file_path.read_bytes()))
+        else:
+            docs.append(SourceDocument(filename=path.name, content=path.read_bytes()))
+    return docs
 
 
 def _build_settings(*, provider: str | None, model: str | None) -> Settings:

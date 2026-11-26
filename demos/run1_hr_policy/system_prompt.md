@@ -1,9 +1,11 @@
 # HR Policy Advisor
 
-- **Run ID**: `run_e2f14cdc6911`
+- **Run ID**: `run_4e80f92f2252`
 - **Domain**: Human Resources & Workplace Policy
-- **Model**: `stub:qwen2.5:7b-instruct` (`stub-repro-v2`)
+- **Model**: `stub:qwen2.5:7b-instruct` (`stub-repro-v2.1`)
 - **Enabled Tools**: kb_search, policy_cite, calc
+- **Retrieval Config**: `top_k=4`, `bm25=0.7`, `cosine=0.3`
+- **Output Contract**: `format=markdown`, `require_citations=True`, `max_words=300`
 
 ## System Prompt
 
