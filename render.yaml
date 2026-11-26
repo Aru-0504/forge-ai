@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: forgeai-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: FORGEAI_ENV
+        value: production
+      - key: FORGEAI_LOG_FORMAT
+        value: json
+      - key: FORGEAI_RUN_EMBEDDED_WORKER
+        value: "true"
+      - key: FORGEAI_WORKER_CONCURRENCY
+        value: "1"
+      - key: FORGEAI_LLM_PROVIDER
+        value: openai_compat
+      - key: FORGEAI_OPENAI_BASE_URL
+        value: https://api.groq.com/openai/v1
+      - key: FORGEAI_LLM_MODEL
+        value: llama-3.1-8b-instant
+      - key: FORGEAI_LLM_SEED
+        value: "42"
+      - key: FORGEAI_MAX_TOKENS_PER_RUN
+        value: "40000"
+      - key: FORGEAI_MAX_LATENCY_SECONDS_PER_RUN
+        value: "180"
+      - key: FORGEAI_MAX_UPLOAD_MB
+        value: "10"
+      - key: FORGEAI_MAX_CSV_ROWS
+        value: "5000"
+      - key: FORGEAI_OPENAI_API_KEY
+        sync: false
+      - key: FORGEAI_API_KEY
+        sync: false

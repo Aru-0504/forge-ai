@@ -1,0 +1,7 @@
+# Design Decisions
+
+1. **Pure Core Library vs. Service Wrapper**: Keeping `src/forgeai/core/` free of FastAPI, SQLite, and Streamlit guarantees identical behavior across CLI, API, worker, and tests, and lets CI run a full 7-stage smoke test in seconds with `StubLLMClient`.
+2. **SQLite WAL + Checkpoints for Resumable Jobs**: Rather than requiring Redis/Celery on free hosting tiers, SQLite in WAL mode provides atomic job claiming (`BEGIN IMMEDIATE`), ordered SSE event replay across processes, and disk-backed `checkpoints/<stage>.json` + `run_logs.jsonl` so crashes never lose progress or logs.
+3. **7-Stage Iterative Loop with Early Stopping**: Separating `intake`, `groundability`, `evalgen`, `generator`, `judge`, `critic`, and `report` makes every stage independently observable, retryable, and degradable. Early stopping on target score or budget exhaustion caps runtime on small open models.
+4. **Graceful Degradation After Two Failures**: Small open models can occasionally emit invalid JSON or time out on a single stage. Retrying once and then degrading to a deterministic fallback — clearly flagged in `degraded_stages` inside `report.md` and `scorecard.json` — prevents entire multi-minute runs from crashing while keeping failures auditable.
+5. **Dual LLM Backends Behind One Interface**: `OllamaLLMClient` enables zero-cost local review, while `OpenAICompatLLMClient` enables hosted free-tier deployment against hosted open models, with fixed seeds and logged model/prompt/config versions for reproducibility.
