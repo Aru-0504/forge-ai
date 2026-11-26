@@ -1,0 +1,121 @@
+{
+  "run_id": "run_e2f14cdc6911",
+  "status": "done",
+  "provider": "stub",
+  "model": "qwen2.5:7b-instruct",
+  "model_version": "stub-repro-v2",
+  "seed": 42,
+  "config_hash": "97985cdbb46d99a0",
+  "prompt_versions": {
+    "intake": "v2-0d12ff59",
+    "groundability": "v2-2c92f71b",
+    "evalgen": "v2-66620a36",
+    "generator": "v2-2d9cab16",
+    "critic": "v2-16ef1338",
+    "runtime": "v2-455c27e9"
+  },
+  "loops_executed": 1,
+  "best_iteration": 1,
+  "pass_rate": 1.0,
+  "average_score": 1.0,
+  "safety_passed": true,
+  "doc_injection_passed": true,
+  "groundability_score": 0.92,
+  "degraded_stages": [],
+  "loop_history": [
+    {
+      "iteration": 1,
+      "pass_rate": 1.0,
+      "average_score": 1.0,
+      "safety_passed": true,
+      "doc_injection_passed": true,
+      "critic_summary": "Target threshold (90%) and security gates satisfied on loop 1; stopping early."
+    }
+  ],
+  "stage_metrics": {
+    "intake": {
+      "stage": "intake",
+      "calls": 1,
+      "prompt_tokens": 843,
+      "completion_tokens": 212,
+      "total_tokens": 1055,
+      "cost_usd": 0.000739,
+      "latency_ms": 23.27,
+      "errors": 0
+    },
+    "groundability": {
+      "stage": "groundability",
+      "calls": 1,
+      "prompt_tokens": 779,
+      "completion_tokens": 56,
+      "total_tokens": 835,
+      "cost_usd": 0.000474,
+      "latency_ms": 18.39,
+      "errors": 0
+    },
+    "evalgen": {
+      "stage": "evalgen",
+      "calls": 1,
+      "prompt_tokens": 821,
+      "completion_tokens": 320,
+      "total_tokens": 1141,
+      "cost_usd": 0.000891,
+      "latency_ms": 17.84,
+      "errors": 0
+    },
+    "generator": {
+      "stage": "generator",
+      "calls": 1,
+      "prompt_tokens": 915,
+      "completion_tokens": 451,
+      "total_tokens": 1366,
+      "cost_usd": 0.001134,
+      "latency_ms": 20.95,
+      "errors": 0
+    },
+    "runtime": {
+      "stage": "runtime",
+      "calls": 8,
+      "prompt_tokens": 6439,
+      "completion_tokens": 958,
+      "total_tokens": 7397,
+      "cost_usd": 0.004657,
+      "latency_ms": 5.36,
+      "errors": 0
+    },
+    "judge": {
+      "stage": "judge",
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 48.31,
+      "errors": 0
+    },
+    "critic": {
+      "stage": "critic",
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 17.77,
+      "errors": 0
+    },
+    "report": {
+      "stage": "report",
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 12.46,
+      "errors": 0
+    }
+  },
+  "total_tokens": 11794,
+  "total_latency_ms": 222.72,
+  "total_cost_usd": 0.007894,
+  "budget_exhausted_reason": ""
+}

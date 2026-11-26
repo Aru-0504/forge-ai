@@ -1,0 +1,101 @@
+{
+  "run_id": "run_c0da116d6cc3",
+  "elapsed_ms": 199.03,
+  "llm_calls": 12,
+  "tool_calls": 4,
+  "prompt_tokens": 10275,
+  "completion_tokens": 1943,
+  "total_tokens": 12218,
+  "cost_usd": 0.008052,
+  "errors": 0,
+  "budget": {
+    "max_tokens": 100000,
+    "max_latency_seconds": 600.0,
+    "max_cost_usd": 2.0,
+    "remaining_tokens": 87782,
+    "remaining_latency_seconds": 599.8,
+    "remaining_cost_usd": 1.991948
+  },
+  "stages": {
+    "intake": {
+      "stage": "intake",
+      "calls": 1,
+      "prompt_tokens": 1063,
+      "completion_tokens": 223,
+      "total_tokens": 1286,
+      "cost_usd": 0.000866,
+      "latency_ms": 22.86,
+      "errors": 0
+    },
+    "groundability": {
+      "stage": "groundability",
+      "calls": 1,
+      "prompt_tokens": 798,
+      "completion_tokens": 56,
+      "total_tokens": 854,
+      "cost_usd": 0.000483,
+      "latency_ms": 14.24,
+      "errors": 0
+    },
+    "evalgen": {
+      "stage": "evalgen",
+      "calls": 1,
+      "prompt_tokens": 852,
+      "completion_tokens": 347,
+      "total_tokens": 1199,
+      "cost_usd": 0.000947,
+      "latency_ms": 13.54,
+      "errors": 0
+    },
+    "generator": {
+      "stage": "generator",
+      "calls": 1,
+      "prompt_tokens": 955,
+      "completion_tokens": 483,
+      "total_tokens": 1438,
+      "cost_usd": 0.001202,
+      "latency_ms": 13.08,
+      "errors": 0
+    },
+    "runtime": {
+      "stage": "runtime",
+      "calls": 8,
+      "prompt_tokens": 6607,
+      "completion_tokens": 834,
+      "total_tokens": 7441,
+      "cost_usd": 0.004555,
+      "latency_ms": 4.08,
+      "errors": 0
+    },
+    "judge": {
+      "stage": "judge",
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 43.92,
+      "errors": 0
+    },
+    "critic": {
+      "stage": "critic",
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 10.82,
+      "errors": 0
+    },
+    "report": {
+      "stage": "report",
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0,
+      "cost_usd": 0.0,
+      "latency_ms": 14.22,
+      "errors": 0
+    }
+  }
+}

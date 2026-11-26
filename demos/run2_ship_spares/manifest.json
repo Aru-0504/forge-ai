@@ -1,0 +1,44 @@
+{
+  "schema_version": "2.0.0",
+  "run_id": "run_c0da116d6cc3",
+  "status": "done",
+  "created_at": "2026-11-26T10:13:34.873385+00:00",
+  "goal": "Assist marine engineers with ship spares SKU lookups, stock verification, order cost calculations, and emergency requisition SOPs.",
+  "provider": "stub",
+  "model": "qwen2.5:7b-instruct",
+  "model_version": "stub-repro-v2",
+  "seed": 42,
+  "config_hash": "97985cdbb46d99a0",
+  "prompt_versions": {
+    "intake": "v2-0d12ff59",
+    "groundability": "v2-2c92f71b",
+    "evalgen": "v2-66620a36",
+    "generator": "v2-2d9cab16",
+    "critic": "v2-16ef1338",
+    "runtime": "v2-455c27e9"
+  },
+  "agent_name": "Ship Spares Operations Specialist",
+  "agent_slug": "ship-spares-operations-specialist",
+  "domain": "Maritime Ship Spares & Parts Operations",
+  "sources": [
+    "ship_spares_catalog.csv",
+    "emergency_requisition_sop.md"
+  ],
+  "chunk_count": 7,
+  "table_count": 1,
+  "eval_pass_rate": 1.0,
+  "eval_average_score": 1.0,
+  "degraded_stages": [],
+  "files": [
+    "manifest.json",
+    "analysis.json",
+    "groundability.json",
+    "agent_spec.json",
+    "knowledge_index.json",
+    "eval_report.json",
+    "scorecard.json",
+    "report.md",
+    "metrics.json",
+    "system_prompt.md"
+  ]
+}

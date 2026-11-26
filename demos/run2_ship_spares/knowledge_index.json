@@ -1,0 +1,192 @@
+{
+  "sources": [
+    "ship_spares_catalog.csv",
+    "emergency_requisition_sop.md"
+  ],
+  "chunks": [
+    {
+      "chunk_id": "c001",
+      "source": "ship_spares_catalog.csv",
+      "section": "Table: ship_spares_catalog.csv",
+      "text": "# Table: ship_spares_catalog.csv\nColumns: part_number, part_name, subsystem, unit_price_usd, stock_qty, reorder_point, lead_time_days, criticality, supplier\nRow 1: part_number=SP-1001 | part_name=Fuel Injector Nozzle | subsystem=Main Engine | unit_price_usd=320 | stock_qty=14 | reorder_point=6 | lead_time_days=5 | criticality=CRITICAL | supplier=NordicMarine GmbH\nRow 2: part_number=SP-1002 | part_name=Turbocharger Seal Kit | subsystem=Main Engine | unit_price_usd=185 | stock_qty=8 | reorder_point=4 | lead_time_days=7 | criticality=CRITICAL | supplier=NordicMarine GmbH\nRow 3: part_number=SP-1003 | part_name=Lube Oil Filter Cartridge | subsystem=Lubrication | unit_price_usd=42 | stock_qty=45 | reorder_point=20 | lead_time_days=3 | criticality=STANDARD | supplier=BalticFilters AB",
+      "char_start": 0,
+      "char_end": 787,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c002",
+      "source": "ship_spares_catalog.csv",
+      "section": "Table: ship_spares_catalog.csv",
+      "text": "ge | subsystem=Lubrication | unit_price_usd=42 | stock_qty=45 | reorder_point=20 | lead_time_days=3 | criticality=STANDARD | supplier=BalticFilters AB\nRow 4: part_number=SP-1004 | part_name=Sea Water Cooling Pump Impeller | subsystem=Cooling | unit_price_usd=260 | stock_qty=5 | reorder_point=5 | lead_time_days=10 | criticality=HIGH | supplier=Aegir Pumps Ltd\nRow 5: part_number=SP-1005 | part_name=Cylinder Head Gasket Set | subsystem=Main Engine | unit_price_usd=540 | stock_qty=3 | reorder_point=4 | lead_time_days=14 | criticality=CRITICAL | supplier=NordicMarine GmbH\nRow 6: part_number=SP-1006 | part_name=Aux Generator AVR Module | subsystem=Electrical | unit_price_usd=410 | stock_qty=6 | reorder_point=3 | lead_time_days=6 | criticality=HIGH | supplier=Helios Marine Elec",
+      "char_start": 637,
+      "char_end": 1418,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c003",
+      "source": "ship_spares_catalog.csv",
+      "section": "Table: ship_spares_catalog.csv",
+      "text": "Module | subsystem=Electrical | unit_price_usd=410 | stock_qty=6 | reorder_point=3 | lead_time_days=6 | criticality=HIGH | supplier=Helios Marine Elec\nRow 7: part_number=SP-1007 | part_name=Bilge Separator Coalescer Element | subsystem=Environmental | unit_price_usd=95 | stock_qty=18 | reorder_point=10 | lead_time_days=4 | criticality=STANDARD | supplier=EcoSea Tech\nRow 8: part_number=SP-1008 | part_name=Steering Gear Hydraulic Solenoid Valve | subsystem=Navigation | unit_price_usd=680 | stock_qty=2 | reorder_point=2 | lead_time_days=12 | criticality=CRITICAL | supplier=HydraNav Systems",
+      "char_start": 1268,
+      "char_end": 1861,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c001",
+      "source": "emergency_requisition_sop.md",
+      "section": "Vessel Ship Spares & Emergency Requisition SOP (SOP-MAR-204)",
+      "text": "# Vessel Ship Spares & Emergency Requisition SOP (SOP-MAR-204)",
+      "char_start": 0,
+      "char_end": 62,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c002",
+      "source": "emergency_requisition_sop.md",
+      "section": "1. Standard Requisition Workflow",
+      "text": "## 1. Standard Requisition Workflow\n1. Chief Engineer verifies current onboard stock against `ship_spares_catalog.csv` and the Planned Maintenance System (PMS).\n2. When `stock_qty <= reorder_point`, raise a Standard Purchase Requisition (PR) in the Fleet ERP.\n3. Standard orders under **2,500 USD** are approved by the Vessel Technical Superintendent within 48 hours.\n4. Orders of **2,500 USD or above** require secondary sign-off from the Fleet Operations Manager.",
+      "char_start": 64,
+      "char_end": 529,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c003",
+      "source": "emergency_requisition_sop.md",
+      "section": "2. Emergency Requisition for CRITICAL Spares",
+      "text": "## 2. Emergency Requisition for CRITICAL Spares\n1. A spare marked **CRITICAL** (such as Main Engine or Navigation safety-critical assemblies) qualifies for Emergency Requisition when onboard stock falls below minimum safe reserve or following an active machinery failure.\n2. Emergency requisitions require immediate notification to the **Fleet Technical Superintendent** and **24/7 Fleet Duty Desk**.\n3. Air-freight / express courier surcharge is pre-authorized up to **500 USD** for CRITICAL spares; surcharges above 500 USD require Fleet Director approval.\n4. Target dispatch from approved OEM warehouse is within **24 hours** of emergency PO issuance, consigned to the port agent at the vessel's next port of call.",
+      "char_start": 531,
+      "char_end": 1248,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c004",
+      "source": "emergency_requisition_sop.md",
+      "section": "3. Quality & Traceability",
+      "text": "## 3. Quality & Traceability\nAll CRITICAL spares must ship with an OEM Certificate of Conformity (CoC) and Class Society certificate (DNV / Lloyd's Register) where applicable. Non-OEM substitutes are prohibited on Main Engine fuel and steering systems without written Class dispensation.",
+      "char_start": 1250,
+      "char_end": 1537,
+      "injection_flagged": false,
+      "metadata": {}
+    }
+  ],
+  "tables": [
+    {
+      "source": "ship_spares_catalog.csv",
+      "columns": [
+        "part_number",
+        "part_name",
+        "subsystem",
+        "unit_price_usd",
+        "stock_qty",
+        "reorder_point",
+        "lead_time_days",
+        "criticality",
+        "supplier"
+      ],
+      "rows": [
+        {
+          "part_number": "SP-1001",
+          "part_name": "Fuel Injector Nozzle",
+          "subsystem": "Main Engine",
+          "unit_price_usd": "320",
+          "stock_qty": "14",
+          "reorder_point": "6",
+          "lead_time_days": "5",
+          "criticality": "CRITICAL",
+          "supplier": "NordicMarine GmbH"
+        },
+        {
+          "part_number": "SP-1002",
+          "part_name": "Turbocharger Seal Kit",
+          "subsystem": "Main Engine",
+          "unit_price_usd": "185",
+          "stock_qty": "8",
+          "reorder_point": "4",
+          "lead_time_days": "7",
+          "criticality": "CRITICAL",
+          "supplier": "NordicMarine GmbH"
+        },
+        {
+          "part_number": "SP-1003",
+          "part_name": "Lube Oil Filter Cartridge",
+          "subsystem": "Lubrication",
+          "unit_price_usd": "42",
+          "stock_qty": "45",
+          "reorder_point": "20",
+          "lead_time_days": "3",
+          "criticality": "STANDARD",
+          "supplier": "BalticFilters AB"
+        },
+        {
+          "part_number": "SP-1004",
+          "part_name": "Sea Water Cooling Pump Impeller",
+          "subsystem": "Cooling",
+          "unit_price_usd": "260",
+          "stock_qty": "5",
+          "reorder_point": "5",
+          "lead_time_days": "10",
+          "criticality": "HIGH",
+          "supplier": "Aegir Pumps Ltd"
+        },
+        {
+          "part_number": "SP-1005",
+          "part_name": "Cylinder Head Gasket Set",
+          "subsystem": "Main Engine",
+          "unit_price_usd": "540",
+          "stock_qty": "3",
+          "reorder_point": "4",
+          "lead_time_days": "14",
+          "criticality": "CRITICAL",
+          "supplier": "NordicMarine GmbH"
+        },
+        {
+          "part_number": "SP-1006",
+          "part_name": "Aux Generator AVR Module",
+          "subsystem": "Electrical",
+          "unit_price_usd": "410",
+          "stock_qty": "6",
+          "reorder_point": "3",
+          "lead_time_days": "6",
+          "criticality": "HIGH",
+          "supplier": "Helios Marine Elec"
+        },
+        {
+          "part_number": "SP-1007",
+          "part_name": "Bilge Separator Coalescer Element",
+          "subsystem": "Environmental",
+          "unit_price_usd": "95",
+          "stock_qty": "18",
+          "reorder_point": "10",
+          "lead_time_days": "4",
+          "criticality": "STANDARD",
+          "supplier": "EcoSea Tech"
+        },
+        {
+          "part_number": "SP-1008",
+          "part_name": "Steering Gear Hydraulic Solenoid Valve",
+          "subsystem": "Navigation",
+          "unit_price_usd": "680",
+          "stock_qty": "2",
+          "reorder_point": "2",
+          "lead_time_days": "12",
+          "criticality": "CRITICAL",
+          "supplier": "HydraNav Systems"
+        }
+      ],
+      "truncated": false,
+      "total_rows_seen": 8
+    }
+  ],
+  "total_chars": 3398,
+  "flagged_chunks": 0,
+  "detected_scripts": [
+    "latin"
+  ],
+  "ingest_warnings": []
+}

@@ -1,0 +1,4 @@
+part_number,part_name,subsystem,unit_price_usd,stock_qty,reorder_point,lead_time_days,criticality
+SP-1001,Fuel Injector Nozzle,Main Engine,320,14,6,5,CRITICAL
+SP-1004,Sea Water Cooling Pump Impeller,Cooling,260,5,5,10,HIGH
+SP-1008,Steering Gear Hydraulic Solenoid Valve,Navigation,680,2,2,12,CRITICAL

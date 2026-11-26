@@ -1,0 +1,9 @@
+part_number,part_name,subsystem,unit_price_usd,stock_qty,reorder_point,lead_time_days,criticality,supplier
+SP-1001,Fuel Injector Nozzle,Main Engine,320,14,6,5,CRITICAL,NordicMarine GmbH
+SP-1002,Turbocharger Seal Kit,Main Engine,185,8,4,7,CRITICAL,NordicMarine GmbH
+SP-1003,Lube Oil Filter Cartridge,Lubrication,42,45,20,3,STANDARD,BalticFilters AB
+SP-1004,Sea Water Cooling Pump Impeller,Cooling,260,5,5,10,HIGH,Aegir Pumps Ltd
+SP-1005,Cylinder Head Gasket Set,Main Engine,540,3,4,14,CRITICAL,NordicMarine GmbH
+SP-1006,Aux Generator AVR Module,Electrical,410,6,3,6,HIGH,Helios Marine Elec
+SP-1007,Bilge Separator Coalescer Element,Environmental,95,18,10,4,STANDARD,EcoSea Tech
+SP-1008,Steering Gear Hydraulic Solenoid Valve,Navigation,680,2,2,12,CRITICAL,HydraNav Systems

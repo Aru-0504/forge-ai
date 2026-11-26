@@ -1,0 +1,15 @@
+{
+  "is_groundable": true,
+  "coverage_score": 0.92,
+  "covered_topics": [
+    "core_policy_clauses",
+    "procedures",
+    "numerical_rules"
+  ],
+  "missing_gaps": [],
+  "warnings": [],
+  "detected_scripts": [
+    "latin"
+  ],
+  "recommendation": "Proceed to agent generation and evaluation."
+}

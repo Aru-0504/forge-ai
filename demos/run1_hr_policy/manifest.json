@@ -1,0 +1,43 @@
+{
+  "schema_version": "2.0.0",
+  "run_id": "run_e2f14cdc6911",
+  "status": "done",
+  "created_at": "2026-11-26T10:13:34.352864+00:00",
+  "goal": "Answer employee HR policy questions with exact handbook citations and compute meal/travel per-diem totals.",
+  "provider": "stub",
+  "model": "qwen2.5:7b-instruct",
+  "model_version": "stub-repro-v2",
+  "seed": 42,
+  "config_hash": "97985cdbb46d99a0",
+  "prompt_versions": {
+    "intake": "v2-0d12ff59",
+    "groundability": "v2-2c92f71b",
+    "evalgen": "v2-66620a36",
+    "generator": "v2-2d9cab16",
+    "critic": "v2-16ef1338",
+    "runtime": "v2-455c27e9"
+  },
+  "agent_name": "HR Policy Advisor",
+  "agent_slug": "hr-policy-advisor",
+  "domain": "Human Resources & Workplace Policy",
+  "sources": [
+    "hr_policy_handbook.md"
+  ],
+  "chunk_count": 6,
+  "table_count": 0,
+  "eval_pass_rate": 1.0,
+  "eval_average_score": 1.0,
+  "degraded_stages": [],
+  "files": [
+    "manifest.json",
+    "analysis.json",
+    "groundability.json",
+    "agent_spec.json",
+    "knowledge_index.json",
+    "eval_report.json",
+    "scorecard.json",
+    "report.md",
+    "metrics.json",
+    "system_prompt.md"
+  ]
+}

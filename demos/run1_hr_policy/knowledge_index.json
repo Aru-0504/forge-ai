@@ -1,0 +1,74 @@
+{
+  "sources": [
+    "hr_policy_handbook.md"
+  ],
+  "chunks": [
+    {
+      "chunk_id": "c001",
+      "source": "hr_policy_handbook.md",
+      "section": "Acme Corp HR Policy Handbook (2026 Edition)",
+      "text": "# Acme Corp HR Policy Handbook (2026 Edition)",
+      "char_start": 0,
+      "char_end": 45,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c002",
+      "source": "hr_policy_handbook.md",
+      "section": "1. Paid Time Off (PTO) & Holidays",
+      "text": "## 1. Paid Time Off (PTO) & Holidays\nFull-time employees accrue **20 days** of Paid Time Off (PTO) per calendar year (1.67 days per month).\nUp to **5 unused PTO days** may be carried over into the next calendar year; any balance above 5 days expires on December 31 unless required otherwise by local law.\nRequests for 3 or more consecutive PTO days should be submitted in Workday at least **10 business days** in advance for manager approval.\nAcme Corp observes **11 paid public holidays** each year.",
+      "char_start": 47,
+      "char_end": 547,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c003",
+      "source": "hr_policy_handbook.md",
+      "section": "2. Parental Leave",
+      "text": "## 2. Parental Leave\nEligible full-time employees with at least 6 months of tenure receive **16 weeks** of fully paid parental leave following the birth, adoption, or foster placement of a child.\nParental leave may be taken continuously or split into up to two blocks within 12 months of the qualifying event.\nEmployees must submit written notice to HR Operations at least **30 calendar days** prior to the anticipated leave start date.",
+      "char_start": 549,
+      "char_end": 985,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c004",
+      "source": "hr_policy_handbook.md",
+      "section": "3. Remote & Hybrid Work Policy",
+      "text": "## 3. Remote & Hybrid Work Policy\nEngineering, Product, and Operations roles default to a **hybrid schedule**: 3 days per week in-office (Tuesday, Wednesday, Thursday) and 2 days remote.\nEmployees may work remotely from an approved domestic location for up to **20 business days per calendar year** with manager sign-off.\nInternational remote work requires written pre-approval from Legal and Tax Compliance at least 21 days in advance due to permanent establishment and payroll withholding rules.",
+      "char_start": 987,
+      "char_end": 1484,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c005",
+      "source": "hr_policy_handbook.md",
+      "section": "4. Travel & Expense Reimbursement",
+      "text": "## 4. Travel & Expense Reimbursement\n- **Meal per diem (domestic)**: Up to **75 USD per day** with itemized receipts for any single meal exceeding 25 USD.\n- **Meal per diem (international)**: Up to **100 USD per day**.\n- **Lodging**: Standard business-class hotel up to **250 USD per night** in Tier-1 cities (180 USD in Tier-2 cities).\n- **Expense submission deadline**: Expense reports must be filed within **30 days** of trip completion; late reports require VP Finance approval.",
+      "char_start": 1486,
+      "char_end": 1968,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c006",
+      "source": "hr_policy_handbook.md",
+      "section": "5. Escalation & Exceptions",
+      "text": "## 5. Escalation & Exceptions\nQuestions not explicitly covered in this handbook, medical accommodation requests, or policy exception requests must be escalated to **HR Operations** (ticket queue: HR-OPS) within 2 business days.",
+      "char_start": 1970,
+      "char_end": 2197,
+      "injection_flagged": false,
+      "metadata": {}
+    }
+  ],
+  "tables": [],
+  "total_chars": 2197,
+  "flagged_chunks": 0,
+  "detected_scripts": [
+    "latin"
+  ],
+  "ingest_warnings": []
+}

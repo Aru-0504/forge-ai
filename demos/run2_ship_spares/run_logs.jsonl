@@ -1,0 +1,2 @@
+{"ts": "2026-11-26T10:13:34.687764+00:00", "level": "INFO", "logger": "forgeai.core.pipeline", "msg": "Starting ForgeAI 7-stage pipeline run", "run_id": "run_c0da116d6cc3"}
+{"ts": "2026-11-26T10:13:34.890142+00:00", "level": "INFO", "logger": "forgeai.core.pipeline", "msg": "Completed ForgeAI run run_c0da116d6cc3 with status=done", "run_id": "run_c0da116d6cc3"}
