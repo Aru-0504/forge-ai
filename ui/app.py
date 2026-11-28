@@ -125,17 +125,23 @@ def _render_scorecard_view(detail: dict[str, Any]) -> None:
         + gate_pill_html("Doc Injection Defense", bool(scorecard.get("doc_injection_passed", True)))
     )
     st.markdown(badges, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="forge-agent-banner">'
+        f'<span class="agent-title">{spec["name"]}</span>'
+        f'<span class="agent-domain">· {spec.get("domain", "")}</span>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.metric("Agent", spec["name"])
-    c2.metric("Pass Rate", f"{scorecard['pass_rate']:.0%}")
-    c3.metric("Avg Score", f"{scorecard['average_score']:.2f}")
-    c4.metric(
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Pass Rate", f"{scorecard['pass_rate']:.0%}")
+    c2.metric("Avg Score", f"{scorecard['average_score']:.2f}")
+    c3.metric(
         "Loops",
         f"{scorecard.get('loops_executed', 1)} (best #{scorecard.get('best_iteration', 1)})",
     )
-    c5.metric("Total Tokens", f"{scorecard.get('total_tokens', 0):,}")
-    c6.metric("Latency", f"{scorecard.get('total_latency_ms', 0.0):.0f} ms")
+    c4.metric("Total Tokens", f"{scorecard.get('total_tokens', 0):,}")
+    c5.metric("Latency", f"{scorecard.get('total_latency_ms', 0.0):.0f} ms")
 
     if scorecard.get("budget_exhausted_reason"):
         st.warning(f"Budget early stop triggered: {scorecard['budget_exhausted_reason']}")
@@ -402,6 +408,9 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
         st.write("")
         load_preset = st.button("Apply Preset", width="stretch")
 
+    st.session_state.setdefault("factory_brief", "")
+    st.session_state.setdefault("factory_name", "")
+
     if load_preset and preset_choice in PRESET_BRIEFS:
         preset = PRESET_BRIEFS[preset_choice]
         st.session_state["factory_brief"] = preset["brief"]
@@ -409,9 +418,13 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
         st.session_state["factory_preset_files"] = [
             str(p) for p in preset["source_paths"] if p.exists()
         ]
+        st.session_state.pop("interview_preview_questions", None)
         st.toast(f"Loaded preset: {preset_choice}")
     elif preset_choice == "Custom Upload" and load_preset:
+        st.session_state["factory_brief"] = ""
+        st.session_state["factory_name"] = ""
         st.session_state["factory_preset_files"] = []
+        st.session_state.pop("interview_preview_questions", None)
 
     preset_paths = [
         Path(p) for p in st.session_state.get("factory_preset_files", []) if Path(p).exists()
@@ -420,15 +433,15 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
     with st.form("forge_form", clear_on_submit=False):
         brief = st.text_area(
             "Agent Brief",
-            value=st.session_state.get("factory_brief", ""),
+            key="factory_brief",
             placeholder="Describe what the forged agent should do, what calculations/lookups it needs, and its escalation rules...",
-            height=95,
+            height=105,
         )
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
             agent_name_hint = st.text_input(
                 "Agent Name Hint (optional)",
-                value=st.session_state.get("factory_name", ""),
+                key="factory_name",
                 placeholder="e.g. HR Policy Advisor",
             )
         with c2:
@@ -799,8 +812,9 @@ def render_chat_page(client: ForgeAPIClient, api_online: bool) -> None:
     tools = spec.get("enabled_tools", [])
     st.markdown(
         f'<div class="forge-agent-card">'
-        f"<strong>{spec.get('name', selected_label)}</strong> &nbsp;·&nbsp; {domain}<br/>"
-        f"<small>{spec.get('description', '')}</small>"
+        f'<span class="card-title">{spec.get("name", selected_label)}</span>'
+        f'<span class="card-domain">· {domain}</span>'
+        f'<span class="card-desc">{spec.get("description", "")}</span>'
         f"{render_chips_html(tools, prefix='tool: ')}"
         f"</div>",
         unsafe_allow_html=True,
@@ -946,10 +960,6 @@ def main() -> None:
 
         if health:
             st.success(f"API Online · v{health.get('version', '0.1.0')}")
-            st.caption(
-                f"Backend: `{health.get('provider')}:{health.get('model')}`\n\n"
-                f"Config: `{health.get('config_hash', '')}`"
-            )
             metrics = client.metrics().get("counters", {})
             if metrics:
                 m1, m2 = st.columns(2)
