@@ -18,6 +18,14 @@ RunStatus = Literal[
     "budget_exhausted",
 ]
 
+FailureCategory = Literal[
+    "none",
+    "retrieval_miss",
+    "prompt_defect",
+    "hallucination",
+    "wrong_refusal",
+]
+
 
 def utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -175,11 +183,13 @@ class AgentSpec(BaseModel):
 
 
 class EvalCase(BaseModel):
-    """Single golden, refusal, or security test case produced by `evalgen`."""
+    """Single golden, refusal, edge-case, or security test case produced by `evalgen`."""
 
     id: str
     category: str = "grounded_lookup"
     question: str
+    expected_sources: list[str] = Field(default_factory=list)
+    expected_facts: list[str] = Field(default_factory=list)
     expected_keywords: list[str] = Field(default_factory=list)
     expected_tools: list[str] = Field(default_factory=list)
     expect_refusal: bool = False
@@ -191,6 +201,17 @@ class EvalCaseList(BaseModel):
     """Container schema for LLM-generated evaluation suites."""
 
     cases: list[EvalCase] = Field(default_factory=list)
+
+
+class JudgeVerdict(BaseModel):
+    """Bias-defended pointwise LLM-as-judge rubric verdict for a single eval case."""
+
+    grounded: bool = True
+    factually_correct: bool = True
+    refusal_appropriate: bool = True
+    groundedness_score: float = Field(default=1.0, ge=0.0, le=1.0)
+    fact_coverage_score: float = Field(default=1.0, ge=0.0, le=1.0)
+    reasoning: str = ""
 
 
 class ToolTrace(BaseModel):
@@ -214,7 +235,10 @@ class EvalCaseResult(BaseModel):
     tools_used: list[str] = Field(default_factory=list)
     passed: bool
     score: float = Field(ge=0.0, le=1.0)
+    failure_category: FailureCategory = "none"
     checks: dict[str, bool] = Field(default_factory=dict)
+    llm_judge_used: bool = False
+    llm_judge_scores: dict[str, float] = Field(default_factory=dict)
     notes: str = ""
     latency_ms: float = 0.0
 
@@ -229,28 +253,48 @@ class EvalReport(BaseModel):
     average_score: float = Field(ge=0.0, le=1.0)
     safety_passed: bool = True
     doc_injection_passed: bool = True
+    failure_breakdown: dict[str, int] = Field(default_factory=dict)
     results: list[EvalCaseResult] = Field(default_factory=list)
     summary: str = ""
 
 
+class FailureDiagnosis(BaseModel):
+    """Per-case failure classification produced by the Critic stage."""
+
+    case_id: str
+    category: FailureCategory
+    reason: str = ""
+
+
 class CriticFeedback(BaseModel):
-    """Actionable critique produced by the `critic` stage to guide the next loop."""
+    """Actionable critique with 4-category failure taxonomy and targeted patches (no full regen)."""
 
     should_stop: bool = False
     summary: str = ""
+    failure_classifications: list[FailureDiagnosis] = Field(default_factory=list)
     root_causes: list[str] = Field(default_factory=list)
     prompt_patch: str = ""
+    retrieval_patch: dict[str, Any] = Field(default_factory=dict)
+    output_contract_patch: dict[str, Any] = Field(default_factory=dict)
+    must_refuse_add: list[str] = Field(default_factory=list)
+    must_refuse_remove: list[str] = Field(default_factory=list)
     recommended_tool_changes: list[str] = Field(default_factory=list)
 
 
 class LoopRecord(BaseModel):
-    """Recorded telemetry for one generator -> judge -> critic iteration."""
+    """Recorded telemetry and change log for one generator -> judge -> critic iteration."""
 
     iteration: int
     pass_rate: float
     average_score: float
     safety_passed: bool
     doc_injection_passed: bool
+    failure_breakdown: dict[str, int] = Field(default_factory=dict)
+    changes_applied: list[str] = Field(default_factory=list)
+    change_rationale: str = ""
+    failures_addressed: list[str] = Field(default_factory=list)
+    score_before: float | None = None
+    score_after: float | None = None
     critic_summary: str = ""
 
 
@@ -469,7 +513,7 @@ def render_requirements_markdown(req: RequirementsDoc, run_id: str) -> str:
 class ForgeArtifact(BaseModel):
     """Complete, self-contained, reproducible bundle for a forged agent."""
 
-    schema_version: str = "2.1.0"
+    schema_version: str = "2.2.0"
     run_id: str
     status: RunStatus = "done"
     created_at: str = Field(default_factory=utc_now_iso)

@@ -65,6 +65,9 @@ class StageContext:
     agent_spec: AgentSpec | None = None
     eval_report: EvalReport | None = None
     critic_feedback: CriticFeedback | None = None
+    last_changes_applied: list[str] = field(default_factory=list)
+    last_change_rationale: str = ""
+    last_failures_addressed: list[str] = field(default_factory=list)
     best_agent_spec: AgentSpec | None = None
     best_eval_report: EvalReport | None = None
     best_iteration: int = 1

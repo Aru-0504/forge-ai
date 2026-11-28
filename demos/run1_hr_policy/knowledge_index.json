@@ -1,6 +1,7 @@
 {
   "sources": [
-    "hr_policy_handbook.md"
+    "hr_policy_handbook.md",
+    "benefits_and_equipment_policy.md"
   ],
   "chunks": [
     {
@@ -62,10 +63,60 @@
       "char_end": 2197,
       "injection_flagged": false,
       "metadata": {}
+    },
+    {
+      "chunk_id": "c001",
+      "source": "benefits_and_equipment_policy.md",
+      "section": "Acme Corp Employee Benefits & Equipment Stipend Policy (2026 Edition)",
+      "text": "# Acme Corp Employee Benefits & Equipment Stipend Policy (2026 Edition)",
+      "char_start": 0,
+      "char_end": 71,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c002",
+      "source": "benefits_and_equipment_policy.md",
+      "section": "1. Home Office & Equipment Stipend",
+      "text": "## 1. Home Office & Equipment Stipend\nFull-time employees are eligible for a one-time **1,000 USD home-office setup stipend** after completing 30 days of employment.\nEligible purchases include ergonomic chairs, standing desks, external monitors, keyboards, and noise-canceling headsets.\nReceipts must be submitted in Expensify within **45 days** of purchase under cost center `IT-EQUIP-2026`.",
+      "char_start": 73,
+      "char_end": 465,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c003",
+      "source": "benefits_and_equipment_policy.md",
+      "section": "2. Learning & Development (L&D) Budget",
+      "text": "## 2. Learning & Development (L&D) Budget\nEach full-time employee receives an annual **1,500 USD Learning & Development (L&D) allowance** for job-relevant conferences, certifications, online courses, and technical books.\nUnused L&D balances do **not** roll over to the following calendar year and expire on December 15.\nTraining requests above **500 USD** require advance written approval from the employee's direct manager before registration.",
+      "char_start": 467,
+      "char_end": 911,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c004",
+      "source": "benefits_and_equipment_policy.md",
+      "section": "3. Health, Wellness & Commuter Benefits",
+      "text": "## 3. Health, Wellness & Commuter Benefits\nAcme Corp provides a monthly **100 USD wellness reimbursement** covering gym memberships, fitness classes, or mental health apps.\nHybrid and on-site staff qualify for a pre-tax **150 USD monthly commuter benefit** for public transit or approved office parking.",
+      "char_start": 913,
+      "char_end": 1216,
+      "injection_flagged": false,
+      "metadata": {}
+    },
+    {
+      "chunk_id": "c005",
+      "source": "benefits_and_equipment_policy.md",
+      "section": "4. Equipment Return & Offboarding",
+      "text": "## 4. Equipment Return & Offboarding\nCompany-issued laptops and security keys remain Acme Corp property and must be returned within **5 business days** of the employee's final working day.\nItems purchased with the 1,000 USD home-office stipend become employee-owned after **12 months** of continuous employment.",
+      "char_start": 1218,
+      "char_end": 1529,
+      "injection_flagged": false,
+      "metadata": {}
     }
   ],
   "tables": [],
-  "total_chars": 2197,
+  "total_chars": 3726,
   "flagged_chunks": 0,
   "detected_scripts": [
     "latin"

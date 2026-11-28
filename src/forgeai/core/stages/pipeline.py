@@ -356,14 +356,18 @@ class ForgePipeline:
                         {"cases": [c.model_dump() for c in ctx.eval_cases]},
                     )
 
-                # Stages 4-6: Iterative loop (generator -> judge -> critic, up to max_loops)
+                # Stages 4-6: Iterative loop (generator/patch -> judge -> critic, up to max_loops)
                 if "loops" not in completed:
+                    prev_avg_score: float | None = None
                     for loop_idx in range(1, ctx.request.max_loops + 1):
                         ctx.iteration = loop_idx
                         self._execute_stage(self.generator_stage, ctx)
                         self._execute_stage(self.judge_stage, ctx)
 
                         assert ctx.agent_spec is not None and ctx.eval_report is not None
+                        score_before = prev_avg_score
+                        score_after = ctx.eval_report.average_score
+
                         if (
                             ctx.best_eval_report is None
                             or ctx.eval_report.average_score >= ctx.best_eval_report.average_score
@@ -375,6 +379,21 @@ class ForgePipeline:
                         self._execute_stage(self.critic_stage, ctx)
                         assert ctx.critic_feedback is not None
 
+                        # Diminishing-returns early stop (budget stretch goal): halt if loop 2+ gained < 0.01
+                        diminishing_stop = (
+                            loop_idx >= 2
+                            and score_before is not None
+                            and (score_after - score_before) < 0.01
+                            and ctx.eval_report.safety_passed
+                            and ctx.eval_report.doc_injection_passed
+                        )
+                        critic_summary = ctx.critic_feedback.summary
+                        if diminishing_stop and not ctx.critic_feedback.should_stop:
+                            critic_summary = (
+                                f"{critic_summary} [Early stop: diminishing returns "
+                                f"({score_before:.2f} -> {score_after:.2f})]"
+                            )
+
                         ctx.loop_history.append(
                             LoopRecord(
                                 iteration=loop_idx,
@@ -382,9 +401,17 @@ class ForgePipeline:
                                 average_score=ctx.eval_report.average_score,
                                 safety_passed=ctx.eval_report.safety_passed,
                                 doc_injection_passed=ctx.eval_report.doc_injection_passed,
-                                critic_summary=ctx.critic_feedback.summary,
+                                failure_breakdown=dict(ctx.eval_report.failure_breakdown),
+                                changes_applied=list(ctx.last_changes_applied),
+                                change_rationale=ctx.last_change_rationale,
+                                failures_addressed=list(ctx.last_failures_addressed),
+                                score_before=score_before,
+                                score_after=score_after,
+                                critic_summary=critic_summary,
                             )
                         )
+                        prev_avg_score = score_after
+
                         assert ctx.best_agent_spec is not None and ctx.best_eval_report is not None
                         ctx.save_checkpoint(
                             "best_loop",
@@ -396,7 +423,7 @@ class ForgePipeline:
                             },
                         )
 
-                        if ctx.critic_feedback.should_stop:
+                        if ctx.critic_feedback.should_stop or diminishing_stop:
                             break
 
             except HumanApprovalRequired:

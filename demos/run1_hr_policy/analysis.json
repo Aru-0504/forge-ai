@@ -1,6 +1,6 @@
 {
   "domain": "Human Resources & Workplace Policy",
-  "summary": "Answer grounded questions and deterministic calculations for: Answer employee HR policy questions with exact handbook citations and compute meal/travel per-diem totals.",
+  "summary": "Answer grounded questions and deterministic calculations for: Answer employee HR policy, benefits, and equipment stipend questions with exact handbook citations and compute meal/travel per-diem totals.",
   "target_users": [
     "Full-time employees",
     "people managers",

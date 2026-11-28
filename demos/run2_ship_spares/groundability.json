@@ -1,23 +1,14 @@
 {
   "is_groundable": true,
-  "coverage_score": 0.6,
+  "coverage_score": 0.92,
   "covered_topics": [
     "core_policy_clauses",
     "procedures",
     "numerical_rules"
   ],
-  "missing_gaps": [
-    "part_lookup",
-    "lead_time_calc"
-  ],
-  "unsupported_requests": [
-    "part_lookup",
-    "lead_time_calc"
-  ],
-  "warnings": [
-    "Groundability guard flagged unsupported topic 'part_lookup' -> added to must_refuse_topics.",
-    "Groundability guard flagged unsupported topic 'lead_time_calc' -> added to must_refuse_topics."
-  ],
+  "missing_gaps": [],
+  "unsupported_requests": [],
+  "warnings": [],
   "detected_scripts": [
     "latin"
   ],

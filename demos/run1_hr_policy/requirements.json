@@ -1,6 +1,6 @@
 {
   "domain": "Human Resources & Workplace Policy",
-  "scope": "Answer grounded questions and deterministic calculations for: Answer employee HR policy questions with exact handbook citations and compute meal/travel per-diem totals.",
+  "scope": "Answer grounded questions and deterministic calculations for: Answer employee HR policy, benefits, and equipment stipend questions with exact handbook citations and compute meal/travel per-diem totals.",
   "audience": "Full-time employees, people managers, and HR Operations",
   "tone": "Concise, factual, and citation-first",
   "must_answer_topics": [

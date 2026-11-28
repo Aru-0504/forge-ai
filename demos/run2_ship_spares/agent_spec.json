@@ -45,9 +45,7 @@
   "must_refuse_topics": [
     "Unverified non-OEM part substitutions without Class dispensation",
     "Live vendor delivery guarantees not in the catalog",
-    "Live vendor delivery guarantees not present in the catalog",
-    "part_lookup",
-    "lead_time_calc"
+    "Live vendor delivery guarantees not present in the catalog"
   ],
   "max_tool_steps": 4,
   "iteration": 1

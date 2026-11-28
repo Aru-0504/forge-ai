@@ -1,17 +1,131 @@
-"""Stage 4 (generator): Core #3 declarative AgentSpec (prompt, retrieval_config, tools, output_contract)."""
+"""Stage 4 (generator): Core #3 declarative AgentSpec + Core #6 targeted surgical patching on loop 2+."""
 
 from __future__ import annotations
 
 import re
 
 from forgeai.core.prompts.templates import build_generator_messages
-from forgeai.core.schemas import AgentSpec, OutputContract, RetrievalConfig
+from forgeai.core.schemas import (
+    AgentSpec,
+    CriticFeedback,
+    ForgeRequest,
+    KnowledgeIndexData,
+    OutputContract,
+    RetrievalConfig,
+)
 from forgeai.core.stages.base import BaseStage, StageContext
 from forgeai.core.tools.builtins import select_tools_for_agent
 
 
+def apply_targeted_fix(
+    prior_spec: AgentSpec,
+    feedback: CriticFeedback,
+    *,
+    iteration: int,
+    request: ForgeRequest,
+    knowledge_index: KnowledgeIndexData,
+) -> tuple[AgentSpec, list[str]]:
+    """Apply surgical, auditable mutations to `prior_spec` instead of regenerating from scratch."""
+    patched = prior_spec.model_copy(deep=True)
+    patched.iteration = iteration
+    changes: list[str] = []
+
+    # 1. Targeted retrieval_config mutations (addresses retrieval_miss)
+    if feedback.retrieval_patch:
+        rc = patched.retrieval_config.model_copy()
+        for key in ("top_k", "bm25_weight", "cosine_weight", "min_score_threshold"):
+            if key in feedback.retrieval_patch:
+                old_val = getattr(rc, key)
+                raw_new = feedback.retrieval_patch[key]
+                try:
+                    new_val = int(raw_new) if key == "top_k" else float(raw_new)
+                except (TypeError, ValueError):
+                    continue
+                if key == "top_k":
+                    new_val = max(1, min(15, int(new_val)))
+                elif key in {"bm25_weight", "cosine_weight"}:
+                    new_val = max(0.0, min(1.0, float(new_val)))
+                elif key == "min_score_threshold":
+                    new_val = max(0.0, min(5.0, float(new_val)))
+                if new_val != old_val:
+                    setattr(rc, key, new_val)
+                    changes.append(f"retrieval_config.{key}: {old_val} -> {new_val}")
+        patched.retrieval_config = rc
+
+    # 2. Targeted output_contract mutations (addresses prompt_defect)
+    if feedback.output_contract_patch:
+        oc = patched.output_contract.model_copy()
+        if "max_words" in feedback.output_contract_patch:
+            try:
+                new_mw = max(50, min(2000, int(feedback.output_contract_patch["max_words"])))
+                if new_mw != oc.max_words:
+                    changes.append(f"output_contract.max_words: {oc.max_words} -> {new_mw}")
+                    oc.max_words = new_mw
+            except (TypeError, ValueError):
+                pass
+        if "require_citations" in feedback.output_contract_patch:
+            new_rc = bool(feedback.output_contract_patch["require_citations"])
+            if new_rc != oc.require_citations:
+                changes.append(
+                    f"output_contract.require_citations: {oc.require_citations} -> {new_rc}"
+                )
+                oc.require_citations = new_rc
+        patched.output_contract = oc
+
+    # 3. Targeted must_refuse_topics updates (addresses hallucination vs wrong_refusal)
+    if feedback.must_refuse_add:
+        for topic in feedback.must_refuse_add:
+            clean = topic.strip()
+            if clean and clean not in patched.must_refuse_topics:
+                patched.must_refuse_topics.append(clean)
+                changes.append(f"must_refuse_topics += '{clean[:60]}'")
+
+    if feedback.must_refuse_remove:
+        lower_rm = {t.strip().lower() for t in feedback.must_refuse_remove if t.strip()}
+        kept = []
+        for existing in patched.must_refuse_topics:
+            if existing.strip().lower() in lower_rm:
+                changes.append(f"must_refuse_topics -= '{existing[:60]}'")
+            else:
+                kept.append(existing)
+        patched.must_refuse_topics = kept
+
+    # 4. Targeted tool selection updates (filtered through strict brief/corpus rules)
+    if feedback.recommended_tool_changes:
+        recomputed = select_tools_for_agent(
+            request.goal,
+            knowledge_index,
+            recommended=[*patched.enabled_tools, *feedback.recommended_tool_changes],
+            allowed_http_hosts=request.allowed_http_hosts,
+        )
+        if recomputed != patched.enabled_tools:
+            changes.append(f"enabled_tools: {patched.enabled_tools} -> {recomputed}")
+            patched.enabled_tools = recomputed
+
+    # 5. Targeted system_prompt patch (append minimal directive, never wipe prior prompt)
+    if feedback.prompt_patch:
+        patch = feedback.prompt_patch.strip()
+        if patch and patch not in patched.system_prompt:
+            patched.system_prompt = (
+                f"{patched.system_prompt}\n\nTargeted Refinement (loop {iteration}): {patch}"
+            )
+            changes.append(f"system_prompt += '{patch[:110]}'")
+
+    if not changes:
+        fallback_note = (
+            "Verify every claim against retrieved <document_data> chunks and cite [source#chunk_id]."
+        )
+        if fallback_note not in patched.system_prompt:
+            patched.system_prompt = (
+                f"{patched.system_prompt}\n\nTargeted Refinement (loop {iteration}): {fallback_note}"
+            )
+            changes.append(f"system_prompt += '{fallback_note}'")
+
+    return patched, changes
+
+
 class GeneratorStage(BaseStage):
-    """Synthesizes a complete declarative AgentSpec incorporating requirements, gaps, and critic feedback."""
+    """Synthesizes declarative AgentSpec on loop 1 and applies targeted surgical patches on loop 2+."""
 
     name = "generator"
     start_progress = 0.46
@@ -20,6 +134,43 @@ class GeneratorStage(BaseStage):
     def run(self, ctx: StageContext) -> None:
         if ctx.knowledge_index is None or ctx.requirements is None or ctx.groundability is None:
             raise RuntimeError("GeneratorStage requires intake and groundability outputs.")
+
+        # Core #6: On iterations >= 2, apply a TARGETED fix instead of regenerating from scratch!
+        if ctx.iteration >= 2 and ctx.agent_spec is not None and ctx.critic_feedback is not None:
+            patched_spec, changes_applied = apply_targeted_fix(
+                ctx.agent_spec,
+                ctx.critic_feedback,
+                iteration=ctx.iteration,
+                request=ctx.request,
+                knowledge_index=ctx.knowledge_index,
+            )
+            ctx.agent_spec = patched_spec
+            ctx.last_changes_applied = changes_applied
+            ctx.last_change_rationale = ctx.critic_feedback.summary
+            ctx.last_failures_addressed = [
+                f"{d.case_id} ({d.category})" for d in ctx.critic_feedback.failure_classifications
+            ]
+            ctx.emit(
+                stage=self.name,
+                event_type="stage_progress",
+                message=(
+                    f"Applied {len(changes_applied)} targeted fix(es) on loop {ctx.iteration} "
+                    f"(no full regeneration): {'; '.join(changes_applied[:3])}"
+                ),
+                progress=self.end_progress,
+                data={
+                    "iteration": ctx.iteration,
+                    "mode": "targeted_patch",
+                    "changes_applied": changes_applied,
+                    "failures_addressed": ctx.last_failures_addressed,
+                },
+            )
+            return
+
+        # Iteration 1: Initial declarative AgentSpec generation
+        ctx.last_changes_applied = ["Initial declarative AgentSpec generated from RequirementsDoc"]
+        ctx.last_change_rationale = "Baseline synthesis (loop 1)"
+        ctx.last_failures_addressed = []
 
         messages = build_generator_messages(
             ctx.request.goal,
@@ -83,14 +234,6 @@ class GeneratorStage(BaseStage):
             abstain_phrase=spec.output_contract.abstain_phrase or spec.refusal_policy,
         )
 
-        # Ensure critic prompt patch is applied when iterating
-        if ctx.critic_feedback and ctx.critic_feedback.prompt_patch:
-            patch = ctx.critic_feedback.prompt_patch.strip()
-            if patch and patch not in spec.system_prompt:
-                spec.system_prompt = (
-                    f"{spec.system_prompt}\n\nRefinement (loop {ctx.iteration}): {patch}"
-                )
-
         ctx.agent_spec = spec
         ctx.emit(
             stage=self.name,
@@ -103,6 +246,7 @@ class GeneratorStage(BaseStage):
             progress=self.end_progress,
             data={
                 "iteration": ctx.iteration,
+                "mode": "initial_generation",
                 "agent_name": spec.name,
                 "tools": spec.enabled_tools,
                 "retrieval_config": spec.retrieval_config.model_dump(),

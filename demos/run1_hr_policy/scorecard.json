@@ -1,5 +1,5 @@
 {
-  "run_id": "run_4e80f92f2252",
+  "run_id": "run_ad6184a4df1c",
   "status": "done",
   "provider": "stub",
   "model": "qwen2.5:7b-instruct",
@@ -7,18 +7,19 @@
   "seed": 42,
   "config_hash": "5a8140355ac066e5",
   "prompt_versions": {
-    "interview": "v2.1-2357403e",
-    "intake": "v2.1-90ea50e2",
-    "groundability": "v2.1-e9b3362b",
-    "evalgen": "v2.1-563a74c0",
-    "generator": "v2.1-52fc99f7",
-    "critic": "v2.1-2a342278",
-    "runtime": "v2.1-455c27e9"
+    "interview": "v2.2-2357403e",
+    "intake": "v2.2-111b44c6",
+    "groundability": "v2.2-e9b3362b",
+    "evalgen": "v2.2-afe32ca2",
+    "generator": "v2.2-52fc99f7",
+    "judge": "v2.2-a9c7a8c1",
+    "critic": "v2.2-ebe04651",
+    "runtime": "v2.2-455c27e9"
   },
   "loops_executed": 1,
   "best_iteration": 1,
-  "pass_rate": 1.0,
-  "average_score": 1.0,
+  "pass_rate": 0.95,
+  "average_score": 0.95,
   "safety_passed": true,
   "doc_injection_passed": true,
   "groundability_score": 0.92,
@@ -26,10 +27,23 @@
   "loop_history": [
     {
       "iteration": 1,
-      "pass_rate": 1.0,
-      "average_score": 1.0,
+      "pass_rate": 0.95,
+      "average_score": 0.95,
       "safety_passed": true,
       "doc_injection_passed": true,
+      "failure_breakdown": {
+        "retrieval_miss": 0,
+        "prompt_defect": 0,
+        "hallucination": 1,
+        "wrong_refusal": 0
+      },
+      "changes_applied": [
+        "Initial declarative AgentSpec generated from RequirementsDoc"
+      ],
+      "change_rationale": "Baseline synthesis (loop 1)",
+      "failures_addressed": [],
+      "score_before": null,
+      "score_after": 0.95,
       "critic_summary": "Target threshold (90%) and security gates satisfied on loop 1; stopping early."
     }
   ],
@@ -37,51 +51,51 @@
     "intake": {
       "stage": "intake",
       "calls": 2,
-      "prompt_tokens": 1609,
-      "completion_tokens": 458,
-      "total_tokens": 2067,
-      "cost_usd": 0.001491,
-      "latency_ms": 57.03,
+      "prompt_tokens": 1813,
+      "completion_tokens": 467,
+      "total_tokens": 2280,
+      "cost_usd": 0.001607,
+      "latency_ms": 64.87,
       "errors": 0
     },
     "groundability": {
       "stage": "groundability",
       "calls": 1,
-      "prompt_tokens": 891,
+      "prompt_tokens": 907,
       "completion_tokens": 63,
-      "total_tokens": 954,
-      "cost_usd": 0.00054,
-      "latency_ms": 23.0,
+      "total_tokens": 970,
+      "cost_usd": 0.000548,
+      "latency_ms": 39.38,
       "errors": 0
     },
     "evalgen": {
       "stage": "evalgen",
       "calls": 1,
-      "prompt_tokens": 894,
+      "prompt_tokens": 1432,
       "completion_tokens": 320,
-      "total_tokens": 1214,
-      "cost_usd": 0.000927,
-      "latency_ms": 27.11,
+      "total_tokens": 1752,
+      "cost_usd": 0.001196,
+      "latency_ms": 38.62,
       "errors": 0
     },
     "generator": {
       "stage": "generator",
       "calls": 1,
-      "prompt_tokens": 1177,
-      "completion_tokens": 600,
-      "total_tokens": 1777,
-      "cost_usd": 0.001489,
-      "latency_ms": 21.74,
+      "prompt_tokens": 1202,
+      "completion_tokens": 616,
+      "total_tokens": 1818,
+      "cost_usd": 0.001525,
+      "latency_ms": 70.57,
       "errors": 0
     },
     "runtime": {
       "stage": "runtime",
-      "calls": 8,
-      "prompt_tokens": 7586,
-      "completion_tokens": 958,
-      "total_tokens": 8544,
-      "cost_usd": 0.00523,
-      "latency_ms": 5.59,
+      "calls": 36,
+      "prompt_tokens": 36329,
+      "completion_tokens": 4971,
+      "total_tokens": 41300,
+      "cost_usd": 0.025621,
+      "latency_ms": 24.1,
       "errors": 0
     },
     "judge": {
@@ -91,7 +105,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 67.1,
+      "latency_ms": 337.8,
       "errors": 0
     },
     "critic": {
@@ -101,7 +115,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 25.92,
+      "latency_ms": 33.14,
       "errors": 0
     },
     "report": {
@@ -111,12 +125,12 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 18.7,
+      "latency_ms": 11.89,
       "errors": 0
     }
   },
-  "total_tokens": 14556,
-  "total_latency_ms": 338.91,
-  "total_cost_usd": 0.009677,
+  "total_tokens": 48120,
+  "total_latency_ms": 719.56,
+  "total_cost_usd": 0.030497,
   "budget_exhausted_reason": ""
 }

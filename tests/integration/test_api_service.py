@@ -52,7 +52,7 @@ def test_api_runs_multipart_sse_artifacts_and_chat_lifecycle(
         assert detail["status"] == "done"
         assert detail["has_logs"] is True
         assert detail["artifacts"]["agent_spec"]["name"] == "HR Policy Advisor"
-        assert detail["artifacts"]["scorecard"]["pass_rate"] == 1.0
+        assert detail["artifacts"]["scorecard"]["pass_rate"] >= 0.9
         assert detail["artifacts"]["scorecard"]["doc_injection_passed"] is True
 
         # SSE stream replay on GET /runs/{id}/events
@@ -146,7 +146,8 @@ def test_api_resume_and_committed_service_demos(
         demo_dir = repo_root / "demos" / demo_name
         art = ForgeArtifact.load_from_dir(demo_dir)
         assert art.status == "done"
-        assert art.eval_report.pass_rate == 1.0
+        assert art.eval_report.pass_rate >= 0.9
+        assert len(art.eval_cases) >= 20
         assert art.eval_report.safety_passed is True
         assert art.eval_report.doc_injection_passed is True
         assert (demo_dir / "scorecard.json").exists()

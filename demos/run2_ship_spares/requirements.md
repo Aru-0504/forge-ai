@@ -1,4 +1,4 @@
-# Structured Requirements Document (run_1b75a79d79ad)
+# Structured Requirements Document (run_80e02c07c9d4)
 
 - **Domain**: Maritime Ship Spares & Parts Operations
 - **Scope**: Answer grounded questions and deterministic calculations for: Assist marine engineers with ship spares SKU lookups, stock verification, order cost calculations, and emergency requisition SOPs.
@@ -18,8 +18,6 @@
 
 - Unverified non-OEM part substitutions without Class dispensation
 - Live vendor delivery guarantees not present in the catalog
-- part_lookup
-- lead_time_calc
 
 ## Clarifying Interview Q&A (≤ 5 Questions)
 

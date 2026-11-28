@@ -16,9 +16,12 @@ DEMOS_DIR = REPO_ROOT / "demos"
 
 PRESET_BRIEFS: dict[str, dict[str, Any]] = {
     "HR Policy Advisor (Demo Corpus)": {
-        "brief": "Answer employee HR policy questions with exact handbook citations and compute meal/travel per-diem totals.",
+        "brief": "Answer employee HR policy, benefits, and equipment stipend questions with exact handbook citations and compute meal/travel per-diem totals.",
         "agent_name_hint": "HR Policy Advisor",
-        "source_paths": [DEMOS_DIR / "run1_hr_policy" / "sources" / "hr_policy_handbook.md"],
+        "source_paths": [
+            DEMOS_DIR / "run1_hr_policy" / "sources" / "hr_policy_handbook.md",
+            DEMOS_DIR / "run1_hr_policy" / "sources" / "benefits_and_equipment_policy.md",
+        ],
     },
     "Ship Spares Operations Specialist (Demo Corpus)": {
         "brief": "Assist marine engineers with ship spares SKU lookups, stock verification, order cost calculations, and emergency requisition SOPs.",

@@ -96,3 +96,37 @@ def test_parse_csv_builds_structured_table_and_tools_query_it(ship_spares_bytes:
 
         disabled_tool = registry.execute("calc", {"expression": "1+1"}, enabled=["kb_search"])
         assert disabled_tool.ok is False
+
+        # current_date tool returns ISO date & day_of_week
+        dt_trace = registry.execute("current_date", {"utc_offset_hours": 0})
+        assert dt_trace.ok is True
+        assert len(dt_trace.result["date"]) == 10
+        assert dt_trace.result["day_of_week"]
+
+    # open_meteo keyless public API tool + coordinate validation
+    def mock_meteo(req: httpx.Request) -> httpx.Response:
+        assert "api.open-meteo.com" in str(req.url)
+        return httpx.Response(
+            200,
+            json={
+                "latitude": 51.92,
+                "longitude": 4.48,
+                "current_weather": {
+                    "temperature": 14.2,
+                    "windspeed": 18.5,
+                    "winddirection": 210,
+                    "weathercode": 3,
+                    "time": "2026-11-28T12:00",
+                },
+            },
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(mock_meteo)) as meteo_client:
+        m_reg = build_default_registry(index, http_client=meteo_client)
+        w_ok = m_reg.execute("open_meteo", {"latitude": 51.9225, "longitude": 4.4792})
+        assert w_ok.ok is True
+        assert w_ok.result["temperature_c"] == 14.2
+        assert w_ok.result["windspeed_kmh"] == 18.5
+
+        w_bad = m_reg.execute("open_meteo", {"latitude": 999, "longitude": 0})
+        assert w_bad.ok is False

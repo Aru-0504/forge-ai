@@ -1,6 +1,6 @@
 # Ship Spares Operations Specialist
 
-- **Run ID**: `run_1b75a79d79ad`
+- **Run ID**: `run_80e02c07c9d4`
 - **Domain**: Maritime Ship Spares & Parts Operations
 - **Model**: `stub:qwen2.5:7b-instruct` (`stub-repro-v2.1`)
 - **Enabled Tools**: kb_search, policy_cite, table_lookup, calc

@@ -1,30 +1,30 @@
 {
-  "run_id": "run_1b75a79d79ad",
-  "elapsed_ms": 357.78,
-  "llm_calls": 15,
-  "tool_calls": 5,
-  "prompt_tokens": 14059,
-  "completion_tokens": 2470,
-  "total_tokens": 16529,
-  "cost_usd": 0.010734,
+  "run_id": "run_80e02c07c9d4",
+  "elapsed_ms": 306.75,
+  "llm_calls": 42,
+  "tool_calls": 19,
+  "prompt_tokens": 39547,
+  "completion_tokens": 5244,
+  "total_tokens": 44791,
+  "cost_usd": 0.02764,
   "errors": 0,
   "budget": {
-    "max_tokens": 100000,
+    "max_tokens": 250000,
     "max_latency_seconds": 600.0,
     "max_cost_usd": 2.0,
-    "remaining_tokens": 83471,
-    "remaining_latency_seconds": 599.64,
-    "remaining_cost_usd": 1.989265
+    "remaining_tokens": 205209,
+    "remaining_latency_seconds": 599.69,
+    "remaining_cost_usd": 1.97236
   },
   "stages": {
     "intake": {
       "stage": "intake",
       "calls": 2,
-      "prompt_tokens": 1856,
+      "prompt_tokens": 1863,
       "completion_tokens": 477,
-      "total_tokens": 2333,
-      "cost_usd": 0.001643,
-      "latency_ms": 39.81,
+      "total_tokens": 2340,
+      "cost_usd": 0.001647,
+      "latency_ms": 23.04,
       "errors": 0
     },
     "groundability": {
@@ -34,37 +34,37 @@
       "completion_tokens": 63,
       "total_tokens": 980,
       "cost_usd": 0.000553,
-      "latency_ms": 31.14,
+      "latency_ms": 18.58,
       "errors": 0
     },
     "evalgen": {
       "stage": "evalgen",
       "calls": 1,
-      "prompt_tokens": 939,
+      "prompt_tokens": 1302,
       "completion_tokens": 347,
-      "total_tokens": 1286,
-      "cost_usd": 0.00099,
-      "latency_ms": 52.42,
+      "total_tokens": 1649,
+      "cost_usd": 0.001172,
+      "latency_ms": 14.5,
       "errors": 0
     },
     "generator": {
       "stage": "generator",
       "calls": 1,
-      "prompt_tokens": 1242,
+      "prompt_tokens": 1226,
       "completion_tokens": 635,
-      "total_tokens": 1877,
-      "cost_usd": 0.001574,
-      "latency_ms": 22.97,
+      "total_tokens": 1861,
+      "cost_usd": 0.001566,
+      "latency_ms": 12.36,
       "errors": 0
     },
     "runtime": {
       "stage": "runtime",
-      "calls": 10,
-      "prompt_tokens": 9105,
-      "completion_tokens": 948,
-      "total_tokens": 10053,
-      "cost_usd": 0.005975,
-      "latency_ms": 5.06,
+      "calls": 37,
+      "prompt_tokens": 34239,
+      "completion_tokens": 3722,
+      "total_tokens": 37961,
+      "cost_usd": 0.022703,
+      "latency_ms": 18.53,
       "errors": 0
     },
     "judge": {
@@ -74,7 +74,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 64.76,
+      "latency_ms": 150.02,
       "errors": 0
     },
     "critic": {
@@ -84,7 +84,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 13.92,
+      "latency_ms": 16.01,
       "errors": 0
     },
     "report": {
@@ -94,7 +94,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 12.17,
+      "latency_ms": 11.85,
       "errors": 0
     }
   }

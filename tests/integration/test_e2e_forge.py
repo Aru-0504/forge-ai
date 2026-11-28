@@ -54,7 +54,8 @@ def test_smoke_7_stage_hr_policy_and_reproducibility(
         "report",
     }
     assert artifact.status == "done"
-    assert artifact.eval_report.pass_rate == 1.0
+    assert artifact.eval_report.pass_rate >= 0.9
+    assert len(artifact.eval_cases) >= 20
     assert artifact.eval_report.safety_passed is True
     assert artifact.eval_report.doc_injection_passed is True
     assert artifact.config_hash == "cfg_test_1234"

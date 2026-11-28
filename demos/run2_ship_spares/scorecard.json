@@ -1,5 +1,5 @@
 {
-  "run_id": "run_1b75a79d79ad",
+  "run_id": "run_80e02c07c9d4",
   "status": "done",
   "provider": "stub",
   "model": "qwen2.5:7b-instruct",
@@ -7,29 +7,43 @@
   "seed": 42,
   "config_hash": "5a8140355ac066e5",
   "prompt_versions": {
-    "interview": "v2.1-2357403e",
-    "intake": "v2.1-90ea50e2",
-    "groundability": "v2.1-e9b3362b",
-    "evalgen": "v2.1-563a74c0",
-    "generator": "v2.1-52fc99f7",
-    "critic": "v2.1-2a342278",
-    "runtime": "v2.1-455c27e9"
+    "interview": "v2.2-2357403e",
+    "intake": "v2.2-111b44c6",
+    "groundability": "v2.2-e9b3362b",
+    "evalgen": "v2.2-afe32ca2",
+    "generator": "v2.2-52fc99f7",
+    "judge": "v2.2-a9c7a8c1",
+    "critic": "v2.2-ebe04651",
+    "runtime": "v2.2-455c27e9"
   },
   "loops_executed": 1,
   "best_iteration": 1,
-  "pass_rate": 1.0,
-  "average_score": 1.0,
+  "pass_rate": 0.95,
+  "average_score": 0.95,
   "safety_passed": true,
   "doc_injection_passed": true,
-  "groundability_score": 0.6,
+  "groundability_score": 0.92,
   "degraded_stages": [],
   "loop_history": [
     {
       "iteration": 1,
-      "pass_rate": 1.0,
-      "average_score": 1.0,
+      "pass_rate": 0.95,
+      "average_score": 0.95,
       "safety_passed": true,
       "doc_injection_passed": true,
+      "failure_breakdown": {
+        "retrieval_miss": 0,
+        "prompt_defect": 0,
+        "hallucination": 1,
+        "wrong_refusal": 0
+      },
+      "changes_applied": [
+        "Initial declarative AgentSpec generated from RequirementsDoc"
+      ],
+      "change_rationale": "Baseline synthesis (loop 1)",
+      "failures_addressed": [],
+      "score_before": null,
+      "score_after": 0.95,
       "critic_summary": "Target threshold (90%) and security gates satisfied on loop 1; stopping early."
     }
   ],
@@ -37,11 +51,11 @@
     "intake": {
       "stage": "intake",
       "calls": 2,
-      "prompt_tokens": 1856,
+      "prompt_tokens": 1863,
       "completion_tokens": 477,
-      "total_tokens": 2333,
-      "cost_usd": 0.001643,
-      "latency_ms": 39.81,
+      "total_tokens": 2340,
+      "cost_usd": 0.001647,
+      "latency_ms": 23.04,
       "errors": 0
     },
     "groundability": {
@@ -51,37 +65,37 @@
       "completion_tokens": 63,
       "total_tokens": 980,
       "cost_usd": 0.000553,
-      "latency_ms": 31.14,
+      "latency_ms": 18.58,
       "errors": 0
     },
     "evalgen": {
       "stage": "evalgen",
       "calls": 1,
-      "prompt_tokens": 939,
+      "prompt_tokens": 1302,
       "completion_tokens": 347,
-      "total_tokens": 1286,
-      "cost_usd": 0.00099,
-      "latency_ms": 52.42,
+      "total_tokens": 1649,
+      "cost_usd": 0.001172,
+      "latency_ms": 14.5,
       "errors": 0
     },
     "generator": {
       "stage": "generator",
       "calls": 1,
-      "prompt_tokens": 1242,
+      "prompt_tokens": 1226,
       "completion_tokens": 635,
-      "total_tokens": 1877,
-      "cost_usd": 0.001574,
-      "latency_ms": 22.97,
+      "total_tokens": 1861,
+      "cost_usd": 0.001566,
+      "latency_ms": 12.36,
       "errors": 0
     },
     "runtime": {
       "stage": "runtime",
-      "calls": 10,
-      "prompt_tokens": 9105,
-      "completion_tokens": 948,
-      "total_tokens": 10053,
-      "cost_usd": 0.005975,
-      "latency_ms": 5.06,
+      "calls": 37,
+      "prompt_tokens": 34239,
+      "completion_tokens": 3722,
+      "total_tokens": 37961,
+      "cost_usd": 0.022703,
+      "latency_ms": 18.53,
       "errors": 0
     },
     "judge": {
@@ -91,7 +105,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 64.76,
+      "latency_ms": 150.02,
       "errors": 0
     },
     "critic": {
@@ -101,7 +115,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 13.92,
+      "latency_ms": 16.01,
       "errors": 0
     },
     "report": {
@@ -111,12 +125,12 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 12.17,
+      "latency_ms": 11.85,
       "errors": 0
     }
   },
-  "total_tokens": 16529,
-  "total_latency_ms": 357.78,
-  "total_cost_usd": 0.010734,
+  "total_tokens": 44791,
+  "total_latency_ms": 306.75,
+  "total_cost_usd": 0.02764,
   "budget_exhausted_reason": ""
 }

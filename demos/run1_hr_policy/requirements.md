@@ -1,7 +1,7 @@
-# Structured Requirements Document (run_4e80f92f2252)
+# Structured Requirements Document (run_ad6184a4df1c)
 
 - **Domain**: Human Resources & Workplace Policy
-- **Scope**: Answer grounded questions and deterministic calculations for: Answer employee HR policy questions with exact handbook citations and compute meal/travel per-diem totals.
+- **Scope**: Answer grounded questions and deterministic calculations for: Answer employee HR policy, benefits, and equipment stipend questions with exact handbook citations and compute meal/travel per-diem totals.
 - **Audience**: Full-time employees, people managers, and HR Operations
 - **Tone**: Concise, factual, and citation-first
 - **Approved by Human**: No (Unattended / Pending)

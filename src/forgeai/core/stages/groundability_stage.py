@@ -2,10 +2,91 @@
 
 from __future__ import annotations
 
-from forgeai.core.ingest.index import HybridKnowledgeIndex
+import re
+
+from forgeai.core.ingest.index import HybridKnowledgeIndex, tokenize
 from forgeai.core.prompts.templates import build_groundability_messages
-from forgeai.core.schemas import GroundabilityReport
+from forgeai.core.schemas import GroundabilityReport, KnowledgeIndexData
 from forgeai.core.stages.base import BaseStage, StageContext
+
+_CAPABILITY_SUFFIX_TOKENS: frozenset[str] = frozenset(
+    {
+        "lookup",
+        "calc",
+        "calculate",
+        "calculation",
+        "calculations",
+        "sop",
+        "sops",
+        "guide",
+        "guidance",
+        "policy",
+        "policies",
+        "check",
+        "query",
+        "support",
+        "info",
+        "information",
+        "retrieval",
+        "search",
+        "entitlement",
+        "management",
+        "questions",
+    }
+)
+
+
+def _is_topic_supported_by_corpus(
+    topic: str,
+    index: HybridKnowledgeIndex,
+    knowledge: KnowledgeIndexData,
+    recommended_tools: list[str],
+) -> bool:
+    """Verify whether a must_answer_topic is supported by chunks, structured tables, or enabled tools.
+
+    Prevents false positives on shorthand topic slugs like `part_lookup` or `lead_time_calc`
+    whose substantive nouns (`part`, `lead`, `time`) exist in CSV headers/chunks, while still
+    reliably flagging genuinely absent topics (e.g., `cryptocurrency_payroll` or `stock_options`).
+    """
+    query = topic.replace("_", " ").strip()
+    if not query:
+        return True
+
+    # 1. Direct hybrid search on full topic text
+    if index.search(query, top_k=1, min_score=0.05):
+        return True
+
+    # 2. Extract substantive content tokens (strip generic capability verbs like lookup/calc/sop)
+    raw_tokens = tokenize(query)
+    content_tokens = [t for t in raw_tokens if t not in _CAPABILITY_SUFFIX_TOKENS and len(t) >= 3]
+    if not content_tokens:
+        # Pure capability slug like "calculations" -> supported if calc/kb_search tool is enabled
+        return bool(recommended_tools)
+
+    # 3. Check structured table schemas (split snake_case/kebab-case headers & sample cells)
+    table_vocab: set[str] = set()
+
+    def _add_words(text: str) -> None:
+        table_vocab.update(tokenize(text))
+        table_vocab.update(re.findall(r"[a-z0-9]{2,}", text.lower()))
+
+    for tbl in knowledge.tables:
+        _add_words(tbl.source)
+        for col in tbl.columns:
+            _add_words(col)
+        for row in tbl.rows[:30]:
+            for val in row.values():
+                _add_words(str(val))
+
+    if any(tok in table_vocab for tok in content_tokens):
+        return True
+
+    # 4. Check substantive tokens directly against HybridKnowledgeIndex
+    cleaned_query = " ".join(content_tokens)
+    if index.search(cleaned_query, top_k=1, min_score=0.05):
+        return True
+
+    return False
 
 
 class GroundabilityStage(BaseStage):
@@ -29,12 +110,16 @@ class GroundabilityStage(BaseStage):
             metrics=ctx.metrics,
         )
 
-        # Deterministic verification of every must_answer_topic against HybridKnowledgeIndex
+        # Deterministic verification of every must_answer_topic against chunks + structured tables
         index = HybridKnowledgeIndex(ctx.knowledge_index)
         for topic in ctx.requirements.must_answer_topics:
-            query = topic.replace("_", " ")
-            hits = index.search(query, top_k=1, min_score=0.05)
-            if not hits:
+            supported = _is_topic_supported_by_corpus(
+                topic,
+                index,
+                ctx.knowledge_index,
+                ctx.requirements.recommended_tools,
+            )
+            if not supported:
                 if topic not in report.missing_gaps:
                     report.missing_gaps.append(topic)
                 if topic not in report.unsupported_requests:
@@ -56,7 +141,12 @@ class GroundabilityStage(BaseStage):
 
         if report.unsupported_requests and report.coverage_score > 0.85:
             report.coverage_score = round(
-                max(0.2, 1.0 - len(report.unsupported_requests) / max(1, len(ctx.requirements.must_answer_topics) + 1)),
+                max(
+                    0.2,
+                    1.0
+                    - len(report.unsupported_requests)
+                    / max(1, len(ctx.requirements.must_answer_topics) + 1),
+                ),
                 2,
             )
 

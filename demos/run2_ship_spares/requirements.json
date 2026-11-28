@@ -11,9 +11,7 @@
   ],
   "must_refuse_topics": [
     "Unverified non-OEM part substitutions without Class dispensation",
-    "Live vendor delivery guarantees not present in the catalog",
-    "part_lookup",
-    "lead_time_calc"
+    "Live vendor delivery guarantees not present in the catalog"
   ],
   "clarifying_qa": [
     {

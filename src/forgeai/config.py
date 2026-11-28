@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     max_improvement_loops: int = Field(default=3, ge=1, le=5)
     target_eval_score: float = Field(default=0.9, ge=0.1, le=1.0)
     stage_timeout_seconds: float = Field(default=120.0, gt=0.0)
-    max_tokens_per_run: int = Field(default=100_000, ge=500)
+    max_tokens_per_run: int = Field(default=250_000, ge=500)
     max_latency_seconds_per_run: float = Field(default=600.0, gt=0.0)
     max_cost_usd_per_run: float = Field(default=2.0, gt=0.0)
     input_cost_per_1k: float = Field(default=0.0005, ge=0.0)
