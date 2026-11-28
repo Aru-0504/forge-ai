@@ -31,6 +31,4 @@ services:
       - key: FORGEAI_MAX_CSV_ROWS
         value: "5000"
       - key: FORGEAI_OPENAI_API_KEY
-        sync: false
-      - key: FORGEAI_API_KEY
-        sync: false
+        value: ""
