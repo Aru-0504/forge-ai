@@ -1,13 +1,13 @@
 ---
 title: ForgeAI — AI Agent Factory
 emoji: ⚒️
-colorFrom: slate
+colorFrom: gray
 colorTo: indigo
 sdk: docker
 app_port: 7860
 pinned: false
 license: mit
-short_description: Autonomous 7-stage AI Agent Factory with evals, critic loop, and chat UI
+short_description: Autonomous 7-stage AI Agent Factory with evals & chat UI
 ---
 
 # ForgeAI
@@ -61,7 +61,7 @@ One `BaseLLMClient` interface supports two real backends (plus an offline `stub`
 
 ## Hosted Deployment (Free Tier)
 
-- **Hosted URL**: *Deploy with the included `Dockerfile` on Render / Fly.io / Railway and record your live URL here.*
+- **Hosted URL (Hugging Face Spaces)**: https://huggingface.co/spaces/aru-05/forgeai (direct app: https://aru-05-forgeai.hf.space)
 - **Recommended Free-Tier Env**:
   - `FORGEAI_LLM_PROVIDER=openai_compat`
   - `FORGEAI_OPENAI_BASE_URL=https://api.groq.com/openai/v1` (or OpenRouter)
