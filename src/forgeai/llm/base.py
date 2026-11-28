@@ -642,8 +642,9 @@ class StubLLMClient(BaseLLMClient):
         """ReAct-style stub runtime: invokes tools on step 1, synthesizes grounded answer on step 2."""
         user_msgs = [m.content for m in messages if m.role == "user"]
         latest_user = user_msgs[-1] if user_msgs else ""
-        question = user_msgs[0] if user_msgs else ""
-        has_tool_obs = any("[TOOL_RESULT:" in m.content for m in messages)
+        non_tool_user_msgs = [u for u in user_msgs if not u.startswith("[TOOL_RESULT:")]
+        question = non_tool_user_msgs[-1] if non_tool_user_msgs else ""
+        has_tool_obs = latest_user.startswith("[TOOL_RESULT:")
 
         sys_text = "\n".join(m.content for m in messages if m.role == "system")
         available_tools = set(re.findall(r"- `([a-z_]+)`:", sys_text))

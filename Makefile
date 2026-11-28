@@ -1,4 +1,4 @@
-.PHONY: install dev run worker ui test lint typecheck check demo docker-up docker-ollama docker-down clean
+.PHONY: install dev run worker ui test lint typecheck check demo verify docker-up docker-ollama docker-down clean
 
 PYTHON ?= python
 
@@ -21,7 +21,7 @@ test:
 	$(PYTHON) -m pytest -v
 
 lint:
-	$(PYTHON) -m ruff check src tests ui
+	$(PYTHON) -m ruff check src tests ui scripts
 
 typecheck:
 	$(PYTHON) -m mypy src
@@ -29,7 +29,10 @@ typecheck:
 check: lint typecheck test
 
 demo:
-	$(PYTHON) demos/run_demos.py
+	$(PYTHON) scripts/run_demos.py
+
+verify:
+	$(PYTHON) scripts/verify_e2e.py
 
 docker-up:
 	docker compose up --build
@@ -41,4 +44,4 @@ docker-down:
 	docker compose down
 
 clean:
-	rm -rf .pytest_cache .mypy_cache .ruff_cache build dist *.egg-info
+	$(PYTHON) -c "import pathlib, shutil; [shutil.rmtree(p, ignore_errors=True) for p in ['.pytest_cache', '.mypy_cache', '.ruff_cache', '.tmp_demo_service', 'build', 'dist'] if pathlib.Path(p).exists()]"

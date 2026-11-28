@@ -49,7 +49,7 @@ addopts = "-q --tb=short"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["src", "tests", "ui"]
+src = ["src", "tests", "ui", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "B", "UP"]

@@ -25,8 +25,9 @@ data/
 *.sqlite3
 *.log
 
-# Tests & docs (not required in runtime container)
+# Tests, scripts & docs (not required in runtime container)
 tests/
+scripts/
 docs/
 Makefile
 docker-compose.yml

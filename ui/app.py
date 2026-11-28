@@ -658,7 +658,7 @@ def render_regression_and_baseline_page(client: ForgeAPIClient, api_online: bool
         comp = load_baseline_comparison()
         if not comp:
             st.info(
-                "No committed comparison report found yet. Run `python demos/run_demos.py` to generate `demos/baseline_comparison/`."
+                "No committed comparison report found yet. Run `python scripts/run_demos.py` to generate `demos/baseline_comparison/`."
             )
         else:
             b1, b2, b3, b4 = st.columns(4)

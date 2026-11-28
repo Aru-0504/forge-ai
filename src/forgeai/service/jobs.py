@@ -8,7 +8,7 @@ import signal
 import uuid
 
 from forgeai.config import Settings, get_settings
-from forgeai.core.schemas import ForgeRequest, RequirementsDoc
+from forgeai.core.schemas import ForgeRequest, PipelineEvent, RequirementsDoc
 from forgeai.core.stages.pipeline import ForgePipeline, HumanApprovalRequired
 from forgeai.llm.base import BaseLLMClient, create_llm_client
 from forgeai.observability.logging import configure_logging, get_logger
@@ -170,19 +170,33 @@ class ForgeJobQueue:
             max_files=self.settings.max_files_per_run,
             stage_timeout_seconds=self.settings.stage_timeout_seconds,
         )
+        # Defer terminal SSE events until SQLite state & artifacts are durably committed
+        # so SSE listeners calling GET /runs/{id} immediately never observe stale 'running' state.
+        deferred_terminal: list[PipelineEvent] = []
+
+        def _on_event(evt: PipelineEvent) -> None:
+            if evt.event_type in {"run_completed", "awaiting_approval", "run_failed"}:
+                deferred_terminal.append(evt)
+                return
+            self.event_bus.publish(evt)
+
         try:
             artifact = pipeline.run(
                 request,
                 run_id=run_id,
-                on_event=self.event_bus.publish,
+                on_event=_on_event,
                 checkpoint_dir=checkpoint_dir,
                 log_file=log_file,
             )
             self.store.save_artifact(artifact)
             self.registry.inc(f"forge_runs_{artifact.status}")
+            for evt in deferred_terminal:
+                self.event_bus.publish(evt)
         except HumanApprovalRequired as pause:
             self.store.save_pending_approval(run_id, pause.requirements, pause.groundability)
             self.registry.inc("forge_runs_awaiting_approval")
+            for evt in deferred_terminal:
+                self.event_bus.publish(evt)
             logger.info("Run %s paused at Human Checkpoint awaiting approval", run_id)
         except Exception as exc:
             self.store.update_run_status(
@@ -192,6 +206,8 @@ class ForgeJobQueue:
                 error=str(exc),
             )
             self.registry.inc("forge_runs_failed")
+            for evt in deferred_terminal:
+                self.event_bus.publish(evt)
             raise
 
 

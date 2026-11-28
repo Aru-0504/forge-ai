@@ -60,7 +60,7 @@ One `BaseLLMClient` interface supports two real backends (plus an offline `stub`
 
 ## Committed Real-Service Demos
 
-Both full demos were executed through the real FastAPI service (`make demo` / [demos/run_demos.py](demos/run_demos.py)) with complete artifacts (`manifest.json`, `scorecard.json`, `report.md`, `eval_report.json`, `agent_spec.json`, `knowledge_index.json`, `run_logs.jsonl`, `sse_events.txt`, `sample_transcript.md`) committed:
+Both full demos were executed through the real FastAPI service (`make demo` / [scripts/run_demos.py](scripts/run_demos.py)) with complete artifacts (`manifest.json`, `scorecard.json`, `report.md`, `eval_report.json`, `agent_spec.json`, `knowledge_index.json`, `run_logs.jsonl`, `sse_events.txt`, `sample_transcript.md`) committed:
 
 - [`demos/run1_hr_policy/`](demos/run1_hr_policy/) — **HR Policy Advisor** (with `requirements.md`, `scorecard.json`, `report.md`, `run_logs.jsonl`)
 - [`demos/run2_ship_spares/`](demos/run2_ship_spares/) — **Ship Spares Operations Specialist**
