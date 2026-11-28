@@ -83,6 +83,7 @@ def run_all_demos() -> None:
                         "brief": spec["brief"],
                         "agent_name_hint": spec["agent_name_hint"],
                         "max_loops": "3",
+                        "enable_prompt_tournament": "true",
                     },
                     files=files_payload,
                 )
@@ -90,12 +91,15 @@ def run_all_demos() -> None:
                 run_id = resp.json()["run_id"]
 
                 detail: dict = {}
-                for _ in range(100):
+                for _ in range(200):
                     detail = client.get(f"/runs/{run_id}").json()
                     if detail["status"] in {"done", "failed", "budget_exhausted"}:
                         break
                     time.sleep(0.05)
                 assert detail["status"] == "done", f"Demo {spec['folder']} failed: {detail}"
+                assert detail["artifacts"]["prompt_tournament"] is not None, (
+                    f"Expected prompt_tournament in demo {spec['folder']}"
+                )
 
                 sse = client.get(f"/runs/{run_id}/events")
                 assert sse.status_code == 200

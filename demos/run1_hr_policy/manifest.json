@@ -1,8 +1,8 @@
 {
   "schema_version": "2.2.0",
-  "run_id": "run_ad6184a4df1c",
+  "run_id": "run_8fa99de5cb2b",
   "status": "done",
-  "created_at": "2026-11-28T07:27:21.766904+00:00",
+  "created_at": "2026-11-28T08:19:38.734025+00:00",
   "goal": "Answer employee HR policy, benefits, and equipment stipend questions with exact handbook citations and compute meal/travel per-diem totals.",
   "provider": "stub",
   "model": "qwen2.5:7b-instruct",
@@ -15,6 +15,7 @@
     "groundability": "v2.2-e9b3362b",
     "evalgen": "v2.2-afe32ca2",
     "generator": "v2.2-52fc99f7",
+    "tournament": "v2.2-e1df4bd7",
     "judge": "v2.2-a9c7a8c1",
     "critic": "v2.2-ebe04651",
     "runtime": "v2.2-455c27e9"
@@ -44,6 +45,7 @@
     "scorecard.json",
     "report.md",
     "metrics.json",
-    "system_prompt.md"
+    "system_prompt.md",
+    "prompt_tournament.json"
   ]
 }

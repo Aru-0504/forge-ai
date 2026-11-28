@@ -1,8 +1,8 @@
 {
   "schema_version": "2.2.0",
-  "run_id": "run_80e02c07c9d4",
+  "run_id": "run_8084e8c2cb09",
   "status": "done",
-  "created_at": "2026-11-28T07:27:24.893268+00:00",
+  "created_at": "2026-11-28T08:19:45.630392+00:00",
   "goal": "Assist marine engineers with ship spares SKU lookups, stock verification, order cost calculations, and emergency requisition SOPs.",
   "provider": "stub",
   "model": "qwen2.5:7b-instruct",
@@ -15,6 +15,7 @@
     "groundability": "v2.2-e9b3362b",
     "evalgen": "v2.2-afe32ca2",
     "generator": "v2.2-52fc99f7",
+    "tournament": "v2.2-e1df4bd7",
     "judge": "v2.2-a9c7a8c1",
     "critic": "v2.2-ebe04651",
     "runtime": "v2.2-455c27e9"
@@ -44,6 +45,7 @@
     "scorecard.json",
     "report.md",
     "metrics.json",
-    "system_prompt.md"
+    "system_prompt.md",
+    "prompt_tournament.json"
   ]
 }

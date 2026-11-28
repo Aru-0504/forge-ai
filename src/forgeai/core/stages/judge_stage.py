@@ -353,6 +353,21 @@ class JudgeStage(BaseStage):
         if ctx.knowledge_index is None or ctx.agent_spec is None or not ctx.eval_cases:
             raise RuntimeError("JudgeStage requires KnowledgeIndex, AgentSpec, and eval_cases.")
 
+        # Reuse the winning candidate's full eval report on loop 1 when Prompt Tournament already scored it
+        if ctx.iteration == 1 and ctx.tournament_winner_eval is not None:
+            ctx.eval_report = ctx.tournament_winner_eval
+            ctx.tournament_winner_eval = None
+            ctx.emit(
+                stage=self.name,
+                event_type="stage_progress",
+                message=(
+                    f"[loop 1] Reused winning Prompt Tournament eval report: {ctx.eval_report.summary}"
+                ),
+                progress=self.end_progress,
+                data={"iteration": 1, "reused_from_tournament": True},
+            )
+            return
+
         base_runtime = ForgedAgentRuntime(
             spec=ctx.agent_spec,
             knowledge_index=ctx.knowledge_index,

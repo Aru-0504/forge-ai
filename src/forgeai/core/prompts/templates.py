@@ -77,6 +77,17 @@ PROMPT_DEFINITIONS: dict[str, str] = {
         "Return ONLY valid JSON matching AgentSpec.\n"
         + _QUOTED_DATA_POLICY
     ),
+    "tournament": (
+        "[STAGE:TOURNAMENT]\n"
+        "You are ForgeAI's Prompt Tournament Architect. Propose 3 meaningfully distinct candidate "
+        "system prompts for the same agent so the automated eval suite can pick the winner:\n"
+        "1. `strict_extractive`: ultra-strict citation-first extractive grounding with hard refusal.\n"
+        "2. `structured_procedural`: tool-first step-by-step verification analyst.\n"
+        "3. `concise_executive`: tight bulleted executive brief minimizing token overhead.\n"
+        "Return ONLY valid JSON matching PromptCandidateList:\n"
+        '{"candidates": [{"candidate_id": "cand_1", "strategy": str, "rationale": str, "system_prompt": str}]}\n'
+        + _QUOTED_DATA_POLICY
+    ),
     "judge": (
         "[STAGE:JUDGE]\n"
         "You are ForgeAI's Blind Evaluation Judge. Score a single anonymized candidate response "
@@ -269,6 +280,27 @@ def build_generator_messages(
     )
     return [
         LLMMessage(role="system", content=PROMPT_DEFINITIONS["generator"]),
+        LLMMessage(role="user", content=user),
+    ]
+
+
+def build_tournament_messages(
+    goal: str,
+    requirements: RequirementsDoc,
+    base_spec: AgentSpec,
+) -> list[LLMMessage]:
+    user = (
+        f"GOAL: {goal}\n"
+        f"AGENT_NAME: {base_spec.name}\n"
+        f"DOMAIN: {base_spec.domain}\n"
+        f"AUDIENCE: {requirements.audience}\n"
+        f"TONE: {requirements.tone}\n"
+        f"ENABLED_TOOLS: {', '.join(base_spec.enabled_tools)}\n"
+        f"MUST_REFUSE: {', '.join(base_spec.must_refuse_topics)}\n"
+        f"BASELINE_PROMPT:\n{base_spec.system_prompt}\n"
+    )
+    return [
+        LLMMessage(role="system", content=PROMPT_DEFINITIONS["tournament"]),
         LLMMessage(role="user", content=user),
     ]
 

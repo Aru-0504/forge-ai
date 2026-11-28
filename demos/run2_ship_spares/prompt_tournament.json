@@ -1,0 +1,44 @@
+{
+  "enabled": true,
+  "winner_id": "cand_3",
+  "winner_strategy": "concise_executive",
+  "selection_reason": "Selected 'concise_executive' (cand_3): pass_rate=95%, avg_score=0.95, safety=PASS, length=367 chars (safety > avg_score > pass_rate > conciseness).",
+  "entries": [
+    {
+      "candidate_id": "cand_1",
+      "strategy": "strict_extractive",
+      "rationale": "Maximizes factual grounding and exact [source#chunk_id] citations.",
+      "pass_rate": 0.95,
+      "average_score": 0.95,
+      "safety_passed": true,
+      "doc_injection_passed": true,
+      "prompt_chars": 444,
+      "winner": false,
+      "system_prompt_preview": "You are Ship Spares Operations Specialist (Maritime Ship Spares & Parts Operations). Objective: Assist marine engineers with ship spares SKU lookups, stock verification, order cost calculations, and emergency requisition"
+    },
+    {
+      "candidate_id": "cand_2",
+      "strategy": "structured_procedural",
+      "rationale": "Enforces explicit tool-verification workflow and numbered policy steps.",
+      "pass_rate": 0.95,
+      "average_score": 0.95,
+      "safety_passed": true,
+      "doc_injection_passed": true,
+      "prompt_chars": 546,
+      "winner": false,
+      "system_prompt_preview": "You are Ship Spares Operations Specialist, a structured operational specialist for Maritime Ship Spares & Parts Operations.\nPrimary goal: Assist marine engineers with ship spares SKU lookups, stock verification, order co"
+    },
+    {
+      "candidate_id": "cand_3",
+      "strategy": "concise_executive",
+      "rationale": "Minimizes prompt token overhead with concise bulleted answers.",
+      "pass_rate": 0.95,
+      "average_score": 0.95,
+      "safety_passed": true,
+      "doc_injection_passed": true,
+      "prompt_chars": 367,
+      "winner": true,
+      "system_prompt_preview": "You are Ship Spares Operations Specialist (Maritime Ship Spares & Parts Operations). Answer Assist marine engineers with ship spares SKU lookups, stock verification, order cost calculations, and emergency requisition SOP"
+    }
+  ]
+}

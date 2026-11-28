@@ -65,6 +65,12 @@ def main() -> None:
     help="Ask up to 5 clarifying intake questions and pause for requirements approval before generation.",
 )
 @click.option(
+    "--tournament",
+    is_flag=True,
+    default=False,
+    help="Run a Prompt Tournament (propose 3 candidate system prompts and pick the winner via evals).",
+)
+@click.option(
     "--provider",
     type=click.Choice(["stub", "ollama", "openai_compat"]),
     default=None,
@@ -79,6 +85,7 @@ def forge_cmd(
     run_id: str | None,
     max_loops: int | None,
     interactive: bool,
+    tournament: bool,
     provider: str | None,
     model: str | None,
 ) -> None:
@@ -93,6 +100,7 @@ def forge_cmd(
         agent_name_hint=agent_name_hint,
         sources=docs,
         require_human_approval=interactive,
+        enable_prompt_tournament=tournament,
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
         max_csv_rows=settings.max_csv_rows,

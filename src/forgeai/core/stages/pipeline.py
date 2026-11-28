@@ -20,6 +20,7 @@ from forgeai.core.schemas import (
     GroundabilityReport,
     KnowledgeIndexData,
     LoopRecord,
+    PromptTournamentReport,
     RequirementsDoc,
 )
 from forgeai.core.stages.base import (
@@ -216,6 +217,10 @@ class ForgePipeline:
             ctx.best_eval_report = EvalReport.model_validate(loop_cp["eval_report"])
             ctx.best_iteration = int(loop_cp["best_iteration"])
             ctx.loop_history = [LoopRecord.model_validate(r) for r in loop_cp["loop_history"]]
+            if loop_cp.get("prompt_tournament"):
+                ctx.prompt_tournament = PromptTournamentReport.model_validate(
+                    loop_cp["prompt_tournament"]
+                )
             done.add("loops")
 
         return done
@@ -420,6 +425,9 @@ class ForgePipeline:
                                 "eval_report": ctx.best_eval_report.model_dump(),
                                 "best_iteration": ctx.best_iteration,
                                 "loop_history": [r.model_dump() for r in ctx.loop_history],
+                                "prompt_tournament": ctx.prompt_tournament.model_dump()
+                                if ctx.prompt_tournament
+                                else None,
                             },
                         )
 

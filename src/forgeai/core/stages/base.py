@@ -23,6 +23,7 @@ from forgeai.core.schemas import (
     KnowledgeIndexData,
     LoopRecord,
     PipelineEvent,
+    PromptTournamentReport,
     RequirementsDoc,
     RunStatus,
     Scorecard,
@@ -72,6 +73,8 @@ class StageContext:
     best_eval_report: EvalReport | None = None
     best_iteration: int = 1
     loop_history: list[LoopRecord] = field(default_factory=list)
+    prompt_tournament: PromptTournamentReport | None = None
+    tournament_winner_eval: EvalReport | None = None
 
     # Reliability & status tracking
     status: RunStatus = "running"

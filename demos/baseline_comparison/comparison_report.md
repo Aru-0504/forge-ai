@@ -16,7 +16,7 @@
 
 ## Where the Human Baseline Beats (or Matches) the Factory
 
-- Prompt conciseness: Human prompt is 153 chars vs factory's 864 chars (lower per-turn prompt token cost).
+- Prompt conciseness: Human prompt is 153 chars vs factory's 355 chars (lower per-turn prompt token cost).
 
 ## Case-by-Case Breakdown
 

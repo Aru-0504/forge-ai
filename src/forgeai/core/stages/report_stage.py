@@ -131,6 +131,27 @@ def render_report_markdown(artifact: ForgeArtifact) -> str:
             lines.append(f"- {w}")
         lines.append("")
 
+    if artifact.prompt_tournament is not None and artifact.prompt_tournament.entries:
+        pt = artifact.prompt_tournament
+        lines.extend(
+            [
+                "## Prompt Tournament Comparison",
+                "",
+                f"> {pt.selection_reason}",
+                "",
+                "| Candidate | Strategy | Pass Rate | Avg Score | Direct Safety | Doc Injection | Prompt Chars | Outcome |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- |",
+            ]
+        )
+        for entry in pt.entries:
+            lines.append(
+                f"| `{entry.candidate_id}` | `{entry.strategy}` | {entry.pass_rate:.0%} | "
+                f"{entry.average_score:.2f} | {'PASS' if entry.safety_passed else 'FAIL'} | "
+                f"{'PASS' if entry.doc_injection_passed else 'FAIL'} | {entry.prompt_chars} | "
+                f"{'**WINNER**' if entry.winner else 'Runner-up'} |"
+            )
+        lines.append("")
+
     lines.extend(
         [
             "## Critic–Optimizer Loop Progression & Change Log",
@@ -256,6 +277,7 @@ class ReportStage(BaseStage):
             scorecard=scorecard,
             degraded_stages=ctx.degraded_stages,
             loop_history=ctx.loop_history,
+            prompt_tournament=ctx.prompt_tournament,
             metrics=metrics_snap,
         )
         artifact.report_markdown = render_report_markdown(artifact)

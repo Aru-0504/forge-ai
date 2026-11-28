@@ -1,20 +1,20 @@
 {
-  "run_id": "run_ad6184a4df1c",
-  "elapsed_ms": 719.56,
-  "llm_calls": 41,
-  "tool_calls": 18,
-  "prompt_tokens": 41683,
-  "completion_tokens": 6437,
-  "total_tokens": 48120,
-  "cost_usd": 0.030497,
+  "run_id": "run_8fa99de5cb2b",
+  "elapsed_ms": 2301.51,
+  "llm_calls": 114,
+  "tool_calls": 54,
+  "prompt_tokens": 103486,
+  "completion_tokens": 16840,
+  "total_tokens": 120326,
+  "cost_usd": 0.077003,
   "errors": 0,
   "budget": {
     "max_tokens": 250000,
     "max_latency_seconds": 600.0,
     "max_cost_usd": 2.0,
-    "remaining_tokens": 201880,
-    "remaining_latency_seconds": 599.28,
-    "remaining_cost_usd": 1.969503
+    "remaining_tokens": 129674,
+    "remaining_latency_seconds": 597.7,
+    "remaining_cost_usd": 1.922997
   },
   "stages": {
     "intake": {
@@ -24,7 +24,7 @@
       "completion_tokens": 467,
       "total_tokens": 2280,
       "cost_usd": 0.001607,
-      "latency_ms": 64.87,
+      "latency_ms": 52.29,
       "errors": 0
     },
     "groundability": {
@@ -34,7 +34,7 @@
       "completion_tokens": 63,
       "total_tokens": 970,
       "cost_usd": 0.000548,
-      "latency_ms": 39.38,
+      "latency_ms": 27.18,
       "errors": 0
     },
     "evalgen": {
@@ -44,27 +44,27 @@
       "completion_tokens": 320,
       "total_tokens": 1752,
       "cost_usd": 0.001196,
-      "latency_ms": 38.62,
+      "latency_ms": 34.3,
       "errors": 0
     },
     "generator": {
       "stage": "generator",
-      "calls": 1,
-      "prompt_tokens": 1202,
-      "completion_tokens": 616,
-      "total_tokens": 1818,
-      "cost_usd": 0.001525,
-      "latency_ms": 70.57,
+      "calls": 2,
+      "prompt_tokens": 1783,
+      "completion_tokens": 1077,
+      "total_tokens": 2860,
+      "cost_usd": 0.002507,
+      "latency_ms": 871.38,
       "errors": 0
     },
     "runtime": {
       "stage": "runtime",
-      "calls": 36,
-      "prompt_tokens": 36329,
-      "completion_tokens": 4971,
-      "total_tokens": 41300,
-      "cost_usd": 0.025621,
-      "latency_ms": 24.1,
+      "calls": 108,
+      "prompt_tokens": 97551,
+      "completion_tokens": 14913,
+      "total_tokens": 112464,
+      "cost_usd": 0.071145,
+      "latency_ms": 110.93,
       "errors": 0
     },
     "judge": {
@@ -74,7 +74,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 337.8,
+      "latency_ms": 60.27,
       "errors": 0
     },
     "critic": {
@@ -84,7 +84,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 33.14,
+      "latency_ms": 53.18,
       "errors": 0
     },
     "report": {
@@ -94,7 +94,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 11.89,
+      "latency_ms": 392.61,
       "errors": 0
     }
   }

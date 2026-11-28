@@ -307,3 +307,46 @@ def test_priority1_20_eval_cases_groundability_fix_and_targeted_critic_patch(
     assert patched.retrieval_config.min_score_threshold == 0.02
     assert "crypto payroll" in patched.must_refuse_topics
     assert any("retrieval_config.top_k" in ch for ch in changes)
+
+
+def test_priority2_prompt_tournament_and_interview_endpoint(
+    temp_settings: Settings,
+    hr_policy_bytes: bytes,
+    stub_llm: StubLLMClient,
+    tmp_path: Path,
+) -> None:
+    # 1. Pure core Prompt Tournament evaluates 3 candidate prompts, picks winner, persists & renders report
+    pipeline = ForgePipeline(stub_llm)
+    art = pipeline.run(
+        ForgeRequest(
+            goal="Answer employee HR policy questions with handbook citations and meal per-diem math.",
+            sources=[SourceDocument(filename="hr_policy.md", content=hr_policy_bytes)],
+            enable_prompt_tournament=True,
+        ),
+        run_id="p2_tournament",
+    )
+    assert art.prompt_tournament is not None
+    assert len(art.prompt_tournament.entries) == 3
+    winners = [e for e in art.prompt_tournament.entries if e.winner]
+    assert len(winners) == 1
+    assert winners[0].candidate_id == art.prompt_tournament.winner_id
+    assert "## Prompt Tournament Comparison" in art.report_markdown
+
+    saved = art.save_to_dir(tmp_path / "tournament_out")
+    assert (saved / "prompt_tournament.json").exists()
+    reloaded = ForgeArtifact.load_from_dir(saved)
+    assert reloaded.prompt_tournament is not None
+    assert reloaded.prompt_tournament.winner_id == art.prompt_tournament.winner_id
+
+    # 2. FastAPI POST /interview returns <=5 clarifying questions for interactive UI workflow
+    app = create_app(settings=temp_settings, llm=stub_llm)
+    with TestClient(app) as client:
+        iv = client.post(
+            "/interview",
+            data={"brief": "Answer HR policy questions with citations."},
+            files=[("files", ("hr_policy.md", hr_policy_bytes, "text/markdown"))],
+        )
+        assert iv.status_code == 200
+        body = iv.json()
+        assert 1 <= len(body["questions"]) <= 5
+        assert body["sources"] == ["hr_policy.md"]

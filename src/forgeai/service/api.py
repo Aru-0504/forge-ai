@@ -18,14 +18,18 @@ from pydantic import BaseModel, Field
 from forgeai import __version__
 from forgeai.config import Settings, get_settings
 from forgeai.core.ingest.parsers import IngestInputError
+from forgeai.core.prompts.templates import build_interview_messages
 from forgeai.core.regression import run_regression
 from forgeai.core.runtime.agent import ForgedAgentRuntime
 from forgeai.core.schemas import (
     ChatMessage,
+    ClarifyingQuestionsList,
     ForgeRequest,
     RequirementsDoc,
     SourceDocument,
 )
+from forgeai.core.stages.base import StageContext
+from forgeai.core.stages.intake_stage import IntakeStage
 from forgeai.llm.base import BaseLLMClient, create_llm_client
 from forgeai.observability.logging import configure_logging
 from forgeai.observability.metrics import MetricsRegistry, MetricsTracker, RunBudget
@@ -50,6 +54,7 @@ class CreateRunJSONRequest(BaseModel):
     urls: list[str] = Field(default_factory=list)
     clarifying_answers: dict[str, str] = Field(default_factory=dict)
     require_human_approval: bool = False
+    enable_prompt_tournament: bool = False
     chunk_size: int = Field(default=900, ge=100, le=8000)
     chunk_overlap: int = Field(default=150, ge=0, le=2000)
     max_loops: int | None = Field(default=None, ge=1, le=5)
@@ -147,6 +152,7 @@ def create_app(
         urls: list[str] = []
         clarifying_answers: dict[str, str] = {}
         require_human_approval = False
+        enable_prompt_tournament = False
 
         if "multipart/form-data" in content_type:
             form = await request.form()
@@ -160,6 +166,9 @@ def create_app(
             redact_pii = str(form.get("redact_pii", "true")).lower() != "false"
             require_human_approval = (
                 str(form.get("require_human_approval", "false")).lower() == "true"
+            )
+            enable_prompt_tournament = (
+                str(form.get("enable_prompt_tournament", "false")).lower() == "true"
             )
             max_loops = int(str(form.get("max_loops") or cfg.max_improvement_loops))
 
@@ -205,6 +214,7 @@ def create_app(
             agent_name_hint = payload.agent_name_hint
             redact_pii = payload.redact_pii
             require_human_approval = payload.require_human_approval
+            enable_prompt_tournament = payload.enable_prompt_tournament
             clarifying_answers = dict(payload.clarifying_answers)
             max_loops = payload.max_loops or cfg.max_improvement_loops
             urls = list(payload.urls)
@@ -248,6 +258,7 @@ def create_app(
             urls=urls,
             clarifying_answers=clarifying_answers,
             require_human_approval=require_human_approval,
+            enable_prompt_tournament=enable_prompt_tournament,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             max_csv_rows=cfg.max_csv_rows,
@@ -257,6 +268,38 @@ def create_app(
             allow_private_urls=cfg.allow_private_urls,
             allowed_http_hosts=cfg.allowed_http_hosts_list,
         )
+
+    @app.post("/interview", dependencies=[Depends(_require_api_key)])
+    async def preview_interview_questions(request: Request) -> dict[str, Any]:
+        """Interactive Intake Interviewer preview: inspect docs + brief and return <=5 clarifying questions."""
+        req = await _parse_run_request(request)
+        try:
+            ctx = StageContext(
+                run_id="interview_preview",
+                request=req,
+                llm=client,
+                metrics=MetricsTracker(run_id="interview_preview"),
+                emit_event=lambda _e: None,
+                max_upload_bytes=cfg.max_upload_bytes,
+                max_files=cfg.max_files_per_run,
+            )
+            index = IntakeStage()._ingest_corpus(ctx)
+            q_list = client.generate_json(
+                build_interview_messages(req.goal, index),
+                ClarifyingQuestionsList,
+                stage="interview",
+            )
+        except (UploadValidationError, URLValidationError, IngestInputError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Interview generation failed: {exc}") from exc
+
+        return {
+            "sources": index.sources,
+            "chunk_count": len(index.chunks),
+            "table_count": len(index.tables),
+            "questions": [q.model_dump() for q in q_list.questions[:5]],
+        }
 
     @app.post("/runs", status_code=202, dependencies=[Depends(_require_api_key)])
     async def create_run(request: Request) -> dict[str, Any]:
@@ -319,6 +362,9 @@ def create_app(
                 "eval_report": artifact.eval_report.model_dump(),
                 "scorecard": artifact.scorecard.model_dump(),
                 "degraded_stages": [d.model_dump() for d in artifact.degraded_stages],
+                "prompt_tournament": artifact.prompt_tournament.model_dump()
+                if artifact.prompt_tournament
+                else None,
                 "report_markdown": artifact.report_markdown,
                 "metrics": artifact.metrics,
             }

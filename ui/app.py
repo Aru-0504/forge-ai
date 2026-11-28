@@ -84,7 +84,7 @@ def _render_approval_editor(client: ForgeAPIClient, detail: dict[str, Any]) -> N
         approve_btn = st.form_submit_button(
             "Approve Requirements & Continue Generation",
             type="primary",
-            use_container_width=True,
+            width="stretch",
         )
 
     if approve_btn:
@@ -155,28 +155,28 @@ def _render_scorecard_view(detail: dict[str, Any]) -> None:
         data=zip_bytes,
         file_name=f"{run_id}_artifacts.zip",
         mime="application/zip",
-        use_container_width=True,
+        width="stretch",
     )
     dl2.download_button(
         "Download report.md",
         data=artifacts.get("report_markdown") or "",
         file_name=f"{run_id}_report.md",
         mime="text/markdown",
-        use_container_width=True,
+        width="stretch",
     )
     dl3.download_button(
         "Download scorecard.json",
         data=json.dumps(scorecard, indent=2),
         file_name=f"{run_id}_scorecard.json",
         mime="application/json",
-        use_container_width=True,
+        width="stretch",
     )
     dl4.download_button(
         "Download agent_spec.json",
         data=json.dumps(spec, indent=2),
         file_name=f"{run_id}_agent_spec.json",
         mime="application/json",
-        use_container_width=True,
+        width="stretch",
     )
 
     tab_overview, tab_req, tab_evals, tab_spec, tab_report, tab_repro = st.tabs(
@@ -212,12 +212,33 @@ def _render_scorecard_view(detail: dict[str, Any]) -> None:
             with ch2:
                 st.caption("Latency per Stage (ms)")
                 st.bar_chart(rows, x="stage", y="latency_ms")
-            st.dataframe(rows, use_container_width=True, hide_index=True)
+            st.dataframe(rows, width="stretch", hide_index=True)
 
         loop_history = scorecard.get("loop_history", [])
         if loop_history:
-            st.subheader("Iterative Loop Progression")
-            st.dataframe(loop_history, use_container_width=True)
+            st.subheader("Critic–Optimizer Loop Progression & Change Log")
+            st.dataframe(loop_history, width="stretch")
+
+        tournament = artifacts.get("prompt_tournament")
+        if tournament and tournament.get("entries"):
+            st.subheader("🏆 Prompt Tournament Comparison")
+            st.caption(tournament.get("selection_reason", ""))
+            st.dataframe(
+                [
+                    {
+                        "candidate_id": e["candidate_id"],
+                        "strategy": e["strategy"],
+                        "pass_rate": f"{e['pass_rate']:.0%}",
+                        "avg_score": round(float(e["average_score"]), 2),
+                        "safety": "PASS" if (e["safety_passed"] and e["doc_injection_passed"]) else "FAIL",
+                        "prompt_chars": e["prompt_chars"],
+                        "outcome": "🏆 WINNER" if e["winner"] else "Runner-up",
+                    }
+                    for e in tournament["entries"]
+                ],
+                width="stretch",
+                hide_index=True,
+            )
 
         if groundability:
             st.subheader("Groundability Guard Audit")
@@ -248,7 +269,7 @@ def _render_scorecard_view(detail: dict[str, Any]) -> None:
             qa = requirements.get("clarifying_qa", [])
             if qa:
                 st.subheader("Intake Interviewer Q&A (≤ 5 Questions)")
-                st.dataframe(qa, use_container_width=True, hide_index=True)
+                st.dataframe(qa, width="stretch", hide_index=True)
         else:
             st.info("No structured requirements document stored for this run.")
 
@@ -379,7 +400,7 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
     with pcol2:
         st.write("")
         st.write("")
-        load_preset = st.button("Apply Preset", use_container_width=True)
+        load_preset = st.button("Apply Preset", width="stretch")
 
     if load_preset and preset_choice in PRESET_BRIEFS:
         preset = PRESET_BRIEFS[preset_choice]
@@ -403,7 +424,7 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
             placeholder="Describe what the forged agent should do, what calculations/lookups it needs, and its escalation rules...",
             height=95,
         )
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
             agent_name_hint = st.text_input(
                 "Agent Name Hint (optional)",
@@ -420,6 +441,12 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
                 value=False,
                 help="Pause after intake & groundability so you can review/edit requirements before generation.",
             )
+        with c5:
+            enable_prompt_tournament = st.checkbox(
+                "Prompt Tournament (3x)",
+                value=True,
+                help="Propose 3 candidate system prompt strategies and let the eval suite pick the winner.",
+            )
 
         uploaded_files = st.file_uploader(
             "Domain Documents (.md, .txt, .csv, .json, .yaml, .pdf, .docx, .html)",
@@ -430,11 +457,31 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
                 "Using preset source files: " + ", ".join(f"`{p.name}`" for p in preset_paths)
             )
 
-        submitted = st.form_submit_button(
-            "Launch Forge Run", type="primary", use_container_width=True
-        )
+        # Interactive Clarifying Interview Q&A (if previewed below)
+        preview_qs = st.session_state.get("interview_preview_questions", [])
+        clarifying_answers_input: dict[str, str] = {}
+        if preview_qs:
+            st.markdown("##### Clarifying Interview Questions (≤ 5)")
+            for q in preview_qs:
+                clarifying_answers_input[q["id"]] = st.text_input(
+                    f"[{q['id']}] {q['question']}",
+                    value=q.get("default_answer", ""),
+                    help=q.get("rationale", ""),
+                    key=f"interview_ans_{q['id']}",
+                )
 
-    if submitted:
+        bcol1, bcol2 = st.columns([1, 2])
+        with bcol1:
+            preview_btn = st.form_submit_button(
+                "Ask Clarifying Questions (≤5)",
+                width="stretch",
+            )
+        with bcol2:
+            submitted = st.form_submit_button(
+                "Launch Forge Run", type="primary", width="stretch"
+            )
+
+    if preview_btn or submitted:
         if len(brief.strip()) < 5:
             st.error("Please enter a brief of at least 5 characters.")
             return
@@ -457,6 +504,18 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
             st.error("Upload at least one document or apply a demo preset first.")
             return
 
+        if preview_btn:
+            code, body = client.preview_interview(
+                brief=brief,
+                files=files_to_send,
+                redact_pii=redact_pii,
+            )
+            if code >= 400:
+                st.error(f"Interview preview failed ({code}): {body.get('detail', body)}")
+                return
+            st.session_state["interview_preview_questions"] = body.get("questions", [])
+            st.rerun()
+
         code, body = client.create_run_upload(
             brief=brief,
             files=files_to_send,
@@ -464,11 +523,17 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
             max_loops=max_loops,
             redact_pii=redact_pii,
             require_human_approval=require_human_approval,
+            enable_prompt_tournament=enable_prompt_tournament,
+            clarifying_answers={
+                k: v.strip() for k, v in clarifying_answers_input.items() if v and v.strip()
+            }
+            or None,
         )
         if code >= 400:
             st.error(f"Run rejected ({code}): {body.get('detail', body)}")
             return
 
+        st.session_state.pop("interview_preview_questions", None)
         _stream_run_progress(client, body["run_id"])
 
     st.divider()
@@ -510,7 +575,7 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
             }
             for r in runs
         ],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
@@ -526,7 +591,7 @@ def render_factory_page(client: ForgeAPIClient, api_online: bool) -> None:
         with rcol2:
             st.write("")
             st.write("")
-            if st.button("Resume Run", use_container_width=True):
+            if st.button("Resume Run", width="stretch"):
                 code, body = client.resume_run(to_resume)
                 if code < 400:
                     _stream_run_progress(client, to_resume)
@@ -646,7 +711,7 @@ def render_regression_and_baseline_page(client: ForgeAPIClient, api_online: bool
                         r2.metric("New Pass Rate", f"{report['new_pass_rate']:.0%}")
                         r3.metric("Regressed", report["regressed_count"])
                         r4.metric("Fixed", report["fixed_count"])
-                        st.dataframe(report["diffs"], use_container_width=True, hide_index=True)
+                        st.dataframe(report["diffs"], width="stretch", hide_index=True)
                         st.download_button(
                             "Download regression_report.md",
                             data=report.get("report_markdown", ""),
@@ -678,7 +743,7 @@ def render_regression_and_baseline_page(client: ForgeAPIClient, api_online: bool
                     st.markdown(f"- {line}")
 
             st.subheader("Head-to-Head Case Table")
-            st.dataframe(comp.get("cases", []), use_container_width=True, hide_index=True)
+            st.dataframe(comp.get("cases", []), width="stretch", hide_index=True)
             with st.expander("Full comparison_report.md"):
                 st.markdown(comp.get("report_markdown", ""))
 
@@ -719,7 +784,7 @@ def render_chat_page(client: ForgeAPIClient, api_online: bool) -> None:
     with top2:
         st.write("")
         st.write("")
-        if st.button("New Session", use_container_width=True):
+        if st.button("New Session", width="stretch"):
             st.session_state[history_key] = []
             st.session_state.pop(session_key, None)
             st.rerun()
@@ -751,7 +816,7 @@ def render_chat_page(client: ForgeAPIClient, api_online: bool) -> None:
             short_label,
             key=f"sample_{selected_label}_{idx}",
             help=sample_q,
-            use_container_width=True,
+            width="stretch",
         ):
             queued_prompt = sample_q
 

@@ -307,6 +307,46 @@ class DegradedStageRecord(BaseModel):
     fallback_used: str
 
 
+class PromptCandidate(BaseModel):
+    """One candidate system prompt proposed for the Prompt Tournament stretch goal."""
+
+    candidate_id: str
+    strategy: str
+    rationale: str = ""
+    system_prompt: str
+
+
+class PromptCandidateList(BaseModel):
+    """Container for 2–3 candidate system prompts evaluated in a Prompt Tournament."""
+
+    candidates: list[PromptCandidate] = Field(default_factory=list, max_length=4)
+
+
+class PromptTournamentEntry(BaseModel):
+    """Evaluation outcome for a single candidate system prompt in the Prompt Tournament."""
+
+    candidate_id: str
+    strategy: str
+    rationale: str = ""
+    pass_rate: float = Field(ge=0.0, le=1.0)
+    average_score: float = Field(ge=0.0, le=1.0)
+    safety_passed: bool = True
+    doc_injection_passed: bool = True
+    prompt_chars: int = 0
+    winner: bool = False
+    system_prompt_preview: str = ""
+
+
+class PromptTournamentReport(BaseModel):
+    """Complete Prompt Tournament comparison showing all candidate prompts and the eval-picked winner."""
+
+    enabled: bool = True
+    winner_id: str
+    winner_strategy: str
+    selection_reason: str
+    entries: list[PromptTournamentEntry] = Field(default_factory=list)
+
+
 class Scorecard(BaseModel):
     """Final run scorecard combining eval scores, stage tokens/latency, and reproducibility."""
 
@@ -466,6 +506,7 @@ class ForgeRequest(BaseModel):
     urls: list[str] = Field(default_factory=list)
     clarifying_answers: dict[str, str] = Field(default_factory=dict)
     require_human_approval: bool = False
+    enable_prompt_tournament: bool = False
     chunk_size: int = Field(default=900, ge=100, le=8000)
     chunk_overlap: int = Field(default=150, ge=0, le=2000)
     max_csv_rows: int = Field(default=5000, ge=10, le=100_000)
@@ -540,6 +581,7 @@ class ForgeArtifact(BaseModel):
     scorecard: Scorecard
     degraded_stages: list[DegradedStageRecord] = Field(default_factory=list)
     loop_history: list[LoopRecord] = Field(default_factory=list)
+    prompt_tournament: PromptTournamentReport | None = None
     report_markdown: str = ""
     metrics: dict[str, Any] = Field(default_factory=dict)
 
@@ -582,6 +624,10 @@ class ForgeArtifact(BaseModel):
         (target_dir / "metrics.json").write_text(
             json.dumps(self.metrics, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
+        if self.prompt_tournament is not None:
+            (target_dir / "prompt_tournament.json").write_text(
+                self.prompt_tournament.model_dump_json(indent=2) + "\n", encoding="utf-8"
+            )
         (target_dir / "system_prompt.md").write_text(
             f"# {self.agent_spec.name}\n\n"
             f"- **Run ID**: `{self.run_id}`\n"
@@ -633,6 +679,7 @@ class ForgeArtifact(BaseModel):
                 "report.md",
                 "metrics.json",
                 "system_prompt.md",
+                *(["prompt_tournament.json"] if self.prompt_tournament is not None else []),
             ],
         }
         tmp_manifest = target_dir / "manifest.json.tmp"
@@ -705,6 +752,12 @@ class ForgeArtifact(BaseModel):
             )
         report_path = source_dir / "report.md"
         report_md = report_path.read_text(encoding="utf-8") if report_path.exists() else ""
+        tournament_path = source_dir / "prompt_tournament.json"
+        prompt_tournament = (
+            PromptTournamentReport.model_validate_json(tournament_path.read_text(encoding="utf-8"))
+            if tournament_path.exists()
+            else None
+        )
 
         return cls(
             schema_version=manifest.get("schema_version", "2.1.0"),
@@ -728,6 +781,7 @@ class ForgeArtifact(BaseModel):
             scorecard=scorecard,
             degraded_stages=scorecard.degraded_stages,
             loop_history=scorecard.loop_history,
+            prompt_tournament=prompt_tournament,
             report_markdown=report_md,
             metrics=metrics,
         )

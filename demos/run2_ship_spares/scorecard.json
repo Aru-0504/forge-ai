@@ -1,5 +1,5 @@
 {
-  "run_id": "run_80e02c07c9d4",
+  "run_id": "run_8084e8c2cb09",
   "status": "done",
   "provider": "stub",
   "model": "qwen2.5:7b-instruct",
@@ -12,6 +12,7 @@
     "groundability": "v2.2-e9b3362b",
     "evalgen": "v2.2-afe32ca2",
     "generator": "v2.2-52fc99f7",
+    "tournament": "v2.2-e1df4bd7",
     "judge": "v2.2-a9c7a8c1",
     "critic": "v2.2-ebe04651",
     "runtime": "v2.2-455c27e9"
@@ -38,9 +39,9 @@
         "wrong_refusal": 0
       },
       "changes_applied": [
-        "Initial declarative AgentSpec generated from RequirementsDoc"
+        "Prompt Tournament selected 'concise_executive' (cand_3) from 3 candidates"
       ],
-      "change_rationale": "Baseline synthesis (loop 1)",
+      "change_rationale": "Selected 'concise_executive' (cand_3): pass_rate=95%, avg_score=0.95, safety=PASS, length=367 chars (safety > avg_score > pass_rate > conciseness).",
       "failures_addressed": [],
       "score_before": null,
       "score_after": 0.95,
@@ -55,7 +56,7 @@
       "completion_tokens": 477,
       "total_tokens": 2340,
       "cost_usd": 0.001647,
-      "latency_ms": 23.04,
+      "latency_ms": 119.53,
       "errors": 0
     },
     "groundability": {
@@ -65,7 +66,7 @@
       "completion_tokens": 63,
       "total_tokens": 980,
       "cost_usd": 0.000553,
-      "latency_ms": 18.58,
+      "latency_ms": 312.34,
       "errors": 0
     },
     "evalgen": {
@@ -75,27 +76,27 @@
       "completion_tokens": 347,
       "total_tokens": 1649,
       "cost_usd": 0.001172,
-      "latency_ms": 14.5,
+      "latency_ms": 136.08,
       "errors": 0
     },
     "generator": {
       "stage": "generator",
-      "calls": 1,
-      "prompt_tokens": 1226,
-      "completion_tokens": 635,
-      "total_tokens": 1861,
-      "cost_usd": 0.001566,
-      "latency_ms": 12.36,
+      "calls": 2,
+      "prompt_tokens": 1810,
+      "completion_tokens": 1105,
+      "total_tokens": 2915,
+      "cost_usd": 0.002563,
+      "latency_ms": 390.61,
       "errors": 0
     },
     "runtime": {
       "stage": "runtime",
-      "calls": 37,
-      "prompt_tokens": 34239,
-      "completion_tokens": 3722,
-      "total_tokens": 37961,
-      "cost_usd": 0.022703,
-      "latency_ms": 18.53,
+      "calls": 111,
+      "prompt_tokens": 90958,
+      "completion_tokens": 11166,
+      "total_tokens": 102124,
+      "cost_usd": 0.062228,
+      "latency_ms": 84.21,
       "errors": 0
     },
     "judge": {
@@ -105,7 +106,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 150.02,
+      "latency_ms": 90.76,
       "errors": 0
     },
     "critic": {
@@ -115,7 +116,7 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 16.01,
+      "latency_ms": 64.03,
       "errors": 0
     },
     "report": {
@@ -125,12 +126,12 @@
       "completion_tokens": 0,
       "total_tokens": 0,
       "cost_usd": 0.0,
-      "latency_ms": 11.85,
+      "latency_ms": 58.63,
       "errors": 0
     }
   },
-  "total_tokens": 44791,
-  "total_latency_ms": 306.75,
-  "total_cost_usd": 0.02764,
+  "total_tokens": 110008,
+  "total_latency_ms": 1831.76,
+  "total_cost_usd": 0.068162,
   "budget_exhausted_reason": ""
 }

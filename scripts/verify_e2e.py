@@ -212,6 +212,18 @@ def verify_live_api_and_ui(tmp_root: Path, base_env: dict[str, str]) -> None:
             assert bad.status_code == 400, bad.text
             _log("  [PASS] POST /runs (empty sources rejected cleanly with HTTP 400)")
 
+            # Interactive Clarifying Interview preview endpoint
+            hr_bytes_preview = (
+                REPO_ROOT / "demos" / "run1_hr_policy" / "sources" / "hr_policy_handbook.md"
+            ).read_bytes()
+            iv_r = client.post(
+                "/interview",
+                data={"brief": "Answer employee HR policy questions with handbook citations."},
+                files=[("files", ("hr_policy_handbook.md", hr_bytes_preview, "text/markdown"))],
+            )
+            assert iv_r.status_code == 200 and 1 <= len(iv_r.json()["questions"]) <= 5, iv_r.text
+            _log(f"  [PASS] POST /interview -> {len(iv_r.json()['questions'])} clarifying question(s)")
+
             spares_csv = (
                 REPO_ROOT / "demos" / "run2_ship_spares" / "sources" / "ship_spares_catalog.csv"
             ).read_bytes()
@@ -359,11 +371,19 @@ def verify_live_api_and_ui(tmp_root: Path, base_env: dict[str, str]) -> None:
         assert page.status_code == 200 and "streamlit" in page.text.lower()
         _log(f"  [PASS] Live Streamlit UI healthy at {ui_url}/_stcore/health (HTTP 200)")
 
+        # Stop the live Streamlit subprocess before in-process AppTest to avoid CPU/IO contention
+        ui_proc.terminate()
+        try:
+            ui_proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            ui_proc.kill()
+        ui_proc = None
+
         try:
             from streamlit.testing.v1 import AppTest
 
             os.environ["FORGEAI_API_BASE_URL"] = api_url
-            at = AppTest.from_file(str(REPO_ROOT / "ui" / "app.py"), default_timeout=25)
+            at = AppTest.from_file(str(REPO_ROOT / "ui" / "app.py"), default_timeout=45)
             at.run()
             assert not at.exception, f"Factory page exception: {at.exception}"
             _log("  [PASS] Streamlit AppTest: Page 1 (Agent Factory) rendered cleanly")
@@ -373,7 +393,7 @@ def verify_live_api_and_ui(tmp_root: Path, base_env: dict[str, str]) -> None:
                 "🔁 Regression & Baseline",
                 "💬 Chat Runner",
             ):
-                at.sidebar.radio[0].set_value(page_label).run()
+                at.sidebar.radio[0].set_value(page_label).run(timeout=45)
                 assert not at.exception, f"{page_label} exception: {at.exception}"
                 _log(f"  [PASS] Streamlit AppTest: {page_label} rendered cleanly")
         except ImportError:

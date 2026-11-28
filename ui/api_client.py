@@ -84,6 +84,25 @@ class ForgeAPIClient:
         resp.raise_for_status()
         return dict(resp.json())
 
+    def preview_interview(
+        self,
+        *,
+        brief: str,
+        files: list[tuple[str, bytes, str]],
+        redact_pii: bool = True,
+    ) -> tuple[int, dict[str, Any]]:
+        files_payload = [("files", (name, data, mime)) for name, data, mime in files]
+        data = {
+            "brief": brief.strip(),
+            "redact_pii": str(redact_pii).lower(),
+        }
+        resp = self._request("POST", "/interview", data=data, files=files_payload, timeout=30.0)
+        try:
+            body = resp.json()
+        except Exception:
+            body = {"detail": resp.text}
+        return resp.status_code, body
+
     def create_run_upload(
         self,
         *,
@@ -93,6 +112,8 @@ class ForgeAPIClient:
         max_loops: int = 3,
         redact_pii: bool = True,
         require_human_approval: bool = False,
+        enable_prompt_tournament: bool = False,
+        clarifying_answers: dict[str, str] | None = None,
     ) -> tuple[int, dict[str, Any]]:
         files_payload = [("files", (name, data, mime)) for name, data, mime in files]
         data = {
@@ -101,7 +122,10 @@ class ForgeAPIClient:
             "max_loops": str(max_loops),
             "redact_pii": str(redact_pii).lower(),
             "require_human_approval": str(require_human_approval).lower(),
+            "enable_prompt_tournament": str(enable_prompt_tournament).lower(),
         }
+        if clarifying_answers:
+            data["clarifying_answers"] = json.dumps(clarifying_answers)
         resp = self._request("POST", "/runs", data=data, files=files_payload, timeout=30.0)
         try:
             body = resp.json()
@@ -215,6 +239,9 @@ def load_demo_as_run_detail(demo_dir: Path) -> dict[str, Any]:
             "eval_report": art.eval_report.model_dump(),
             "scorecard": art.scorecard.model_dump(),
             "degraded_stages": [d.model_dump() for d in art.degraded_stages],
+            "prompt_tournament": art.prompt_tournament.model_dump()
+            if art.prompt_tournament
+            else None,
             "report_markdown": art.report_markdown,
             "metrics": art.metrics,
         },
@@ -226,7 +253,17 @@ def build_artifact_zip_bytes(run_id: str, artifacts: dict[str, Any]) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(f"{run_id}/report.md", artifacts.get("report_markdown") or "")
-        for key in ("manifest", "analysis", "groundability", "agent_spec", "eval_report", "scorecard", "metrics"):
+        for key in (
+            "manifest",
+            "requirements",
+            "analysis",
+            "groundability",
+            "agent_spec",
+            "eval_report",
+            "scorecard",
+            "prompt_tournament",
+            "metrics",
+        ):
             if key in artifacts and artifacts[key] is not None:
                 zf.writestr(
                     f"{run_id}/{key}.json",
