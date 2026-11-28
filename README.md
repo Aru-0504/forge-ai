@@ -1,3 +1,15 @@
+---
+title: ForgeAI — AI Agent Factory
+emoji: ⚒️
+colorFrom: slate
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+short_description: Autonomous 7-stage AI Agent Factory with evals, critic loop, and chat UI
+---
+
 # ForgeAI
 
 **ForgeAI** is a deployable **AI Agent Factory**: give it a brief and domain documents (`.md`, `.txt`, `.csv`, `.json`, `.yaml`, `.pdf`, `.docx`, `.html`), and its 7-stage iterative pipeline ingests, checks groundability, generates domain + security evals, synthesizes and iteratively improves an agent (up to 3 loops), and packages a reproducible, citation-first specialist agent behind a FastAPI service, background job worker, CLI, and Streamlit UI.

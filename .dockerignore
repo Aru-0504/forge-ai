@@ -25,9 +25,10 @@ data/
 *.sqlite3
 *.log
 
-# Tests, scripts & docs (not required in runtime container)
+# Tests, scripts & docs (not required in runtime container, except Space entrypoint)
 tests/
 scripts/
+!scripts/start_space.sh
 docs/
 Makefile
 docker-compose.yml
