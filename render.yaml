@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: forgeai-api
+    name: forgeai
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
@@ -15,7 +15,7 @@ services:
       - key: FORGEAI_WORKER_CONCURRENCY
         value: "1"
       - key: FORGEAI_LLM_PROVIDER
-        value: openai_compat
+        value: stub
       - key: FORGEAI_OPENAI_BASE_URL
         value: https://api.groq.com/openai/v1
       - key: FORGEAI_LLM_MODEL
@@ -23,7 +23,7 @@ services:
       - key: FORGEAI_LLM_SEED
         value: "42"
       - key: FORGEAI_MAX_TOKENS_PER_RUN
-        value: "40000"
+        value: "250000"
       - key: FORGEAI_MAX_LATENCY_SECONDS_PER_RUN
         value: "180"
       - key: FORGEAI_MAX_UPLOAD_MB
